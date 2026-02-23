@@ -232,6 +232,76 @@ var SystemDefaults = []models.ConfigVar{
 		Value:       `Your most recent payment for {{.AppName}} was unsuccessful. Please update your billing information to avoid any interruption to your service. You can update your payment method by visiting your <a href="{{.BillingURL}}">billing settings</a>.`,
 		IsSystem:    true,
 	},
+	{
+		Name:        "auth.magic_link.enabled",
+		Description: "Enable or disable magic link (passwordless) login. When enabled, users can sign in via an emailed link.",
+		Type:        models.ConfigTypeEnum,
+		Value:       "false",
+		Options:     `[{"label":"Enabled","value":"true"},{"label":"Disabled","value":"false"}]`,
+		IsSystem:    true,
+	},
+	{
+		Name:        "auth.passkeys.enabled",
+		Description: "Enable or disable passkey/WebAuthn authentication. When enabled, users can register and sign in with passkeys.",
+		Type:        models.ConfigTypeEnum,
+		Value:       "false",
+		Options:     `[{"label":"Enabled","value":"true"},{"label":"Disabled","value":"false"}]`,
+		IsSystem:    true,
+	},
+	{
+		Name:        "auth.sso.enabled",
+		Description: "Enable or disable SAML SSO authentication. When enabled, tenants can configure SAML identity providers.",
+		Type:        models.ConfigTypeEnum,
+		Value:       "false",
+		Options:     `[{"label":"Enabled","value":"true"},{"label":"Disabled","value":"false"}]`,
+		IsSystem:    true,
+	},
+	{
+		Name:        "onboarding.enabled",
+		Description: "Enable or disable the onboarding wizard for new users.",
+		Type:        models.ConfigTypeEnum,
+		Value:       "true",
+		Options:     `[{"label":"Enabled","value":"true"},{"label":"Disabled","value":"false"}]`,
+		IsSystem:    true,
+	},
+	{
+		Name:        "onboarding.steps",
+		Description: "JSON array of onboarding steps to show. Valid steps: profile, team, plan.",
+		Type:        models.ConfigTypeString,
+		Value:       `["profile","team","plan"]`,
+		IsSystem:    true,
+	},
+	{
+		Name:        "email.magic_link.subject",
+		Description: "Subject line for the magic link login email. Supports {{.AppName}}.",
+		Type:        models.ConfigTypeTemplate,
+		Value:       `Sign in to {{.AppName}}`,
+		IsSystem:    true,
+	},
+	{
+		Name:        "email.magic_link.body",
+		Description: "HTML body for the magic link login email. Supports {{.AppName}}, {{.DisplayName}}, {{.MagicLinkURL}}.",
+		Type:        models.ConfigTypeTemplate,
+		Value: `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; color: #1e293b; margin: 0; padding: 40px 20px;">
+    <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 40px;">
+        <h1 style="color: #0f172a; margin: 0 0 8px 0; font-size: 24px;">{{.AppName}}</h1>
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+        <h2 style="color: #1e293b; margin-bottom: 16px;">Sign In</h2>
+        <p style="color: #475569; line-height: 1.6;">Hi {{.DisplayName}},</p>
+        <p style="color: #475569; line-height: 1.6;">Click the button below to sign in to your account:</p>
+        <div style="text-align: center; margin: 30px 0;">
+            <a href="{{.MagicLinkURL}}" style="display: inline-block; background: #2563eb; color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">Sign In</a>
+        </div>
+        <p style="color: #94a3b8; font-size: 14px;">If you didn't request this link, you can safely ignore this email.</p>
+        <p style="color: #94a3b8; font-size: 14px;">This link will expire in 15 minutes.</p>
+    </div>
+</body>
+</html>`,
+		IsSystem: true,
+	},
 }
 
 // Seed inserts any missing system-defined variables into the database.

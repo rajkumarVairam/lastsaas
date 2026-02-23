@@ -21,17 +21,22 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type AuthHandler struct {
 	db              *db.MongoDB
 	jwtService      *auth.JWTService
 	passwordService *auth.PasswordService
+	totpService     *auth.TOTPService
 	googleOAuth     *auth.GoogleOAuthService
+	githubOAuth     *auth.GitHubOAuthService
+	microsoftOAuth  *auth.MicrosoftOAuthService
 	emailService    *email.ResendService
 	events          events.Emitter
 	frontendURL     string
 	syslog          *syslog.Logger
+	getConfig       func(string) string
 }
 
 func NewAuthHandler(
@@ -48,6 +53,7 @@ func NewAuthHandler(
 		db:              database,
 		jwtService:      jwtService,
 		passwordService: passwordService,
+		totpService:     auth.NewTOTPService(),
 		googleOAuth:     googleOAuth,
 		emailService:    emailService,
 		events:          emitter,
@@ -55,6 +61,10 @@ func NewAuthHandler(
 		frontendURL:     frontendURL,
 	}
 }
+
+func (h *AuthHandler) SetGitHubOAuth(svc *auth.GitHubOAuthService)       { h.githubOAuth = svc }
+func (h *AuthHandler) SetMicrosoftOAuth(svc *auth.MicrosoftOAuthService) { h.microsoftOAuth = svc }
+func (h *AuthHandler) SetGetConfig(fn func(string) string)               { h.getConfig = fn }
 
 // --- Request/Response types ---
 
@@ -79,6 +89,11 @@ type AuthResponse struct {
 	RefreshToken string           `json:"refreshToken"`
 	User         *models.User     `json:"user"`
 	Memberships  []MembershipInfo `json:"memberships"`
+}
+
+type MFARequiredResponse struct {
+	MFARequired bool   `json:"mfaRequired"`
+	MFAToken    string `json:"mfaToken"`
 }
 
 type MembershipInfo struct {
@@ -113,6 +128,20 @@ type ChangePasswordRequest struct {
 
 type AcceptInvitationRequest struct {
 	Token string `json:"token"`
+}
+
+// --- Auth Providers Discovery ---
+
+func (h *AuthHandler) GetProviders(w http.ResponseWriter, r *http.Request) {
+	providers := map[string]bool{
+		"password":  true,
+		"google":    h.googleOAuth != nil,
+		"github":    h.githubOAuth != nil,
+		"microsoft": h.microsoftOAuth != nil,
+		"magicLink": h.getConfig != nil && h.getConfig("auth.magic_link.enabled") == "true",
+		"passkeys":  h.getConfig != nil && h.getConfig("auth.passkeys.enabled") == "true",
+	}
+	respondWithJSON(w, http.StatusOK, providers)
 }
 
 // --- Handlers ---
@@ -174,10 +203,8 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	if req.InvitationToken != "" {
 		if err := h.acceptInvitationForUser(r.Context(), user.ID, req.InvitationToken); err != nil {
 			log.Printf("Failed to accept invitation during registration: %v", err)
-			// User is created but invitation failed — they can accept later
 		}
 	} else {
-		// Auto-create a personal tenant
 		h.createPersonalTenant(r.Context(), user.ID, user.DisplayName, now)
 	}
 
@@ -195,7 +222,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusInternalServerError, "Failed to generate token")
 		return
 	}
-	storeRefreshToken(r.Context(), h.db, user.ID, refreshToken, h.jwtService.GetRefreshTTL())
+	storeRefreshToken(r, h.db, user.ID, refreshToken, h.jwtService.GetRefreshTTL())
 
 	memberships := h.getUserMemberships(r.Context(), user.ID)
 
@@ -272,6 +299,20 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		},
 	})
 
+	// If MFA is enabled, return MFA token instead of full tokens
+	if user.TOTPEnabled {
+		mfaToken, err := h.jwtService.GenerateMFAToken(user.ID.Hex(), user.Email)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to generate token")
+			return
+		}
+		respondWithJSON(w, http.StatusOK, MFARequiredResponse{
+			MFARequired: true,
+			MFAToken:    mfaToken,
+		})
+		return
+	}
+
 	accessToken, err := h.jwtService.GenerateAccessToken(user.ID.Hex(), user.Email, user.DisplayName)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to generate token")
@@ -282,7 +323,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusInternalServerError, "Failed to generate token")
 		return
 	}
-	storeRefreshToken(r.Context(), h.db, user.ID, refreshToken, h.jwtService.GetRefreshTTL())
+	storeRefreshToken(r, h.db, user.ID, refreshToken, h.jwtService.GetRefreshTTL())
 
 	memberships := h.getUserMemberships(r.Context(), user.ID)
 
@@ -382,7 +423,14 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusInternalServerError, "Failed to generate token")
 		return
 	}
-	storeRefreshToken(r.Context(), h.db, user.ID, refreshToken, h.jwtService.GetRefreshTTL())
+	storeRefreshToken(r, h.db, user.ID, refreshToken, h.jwtService.GetRefreshTTL())
+
+	// Update lastActiveAt on the new stored token
+	newHash := hashToken(refreshToken)
+	h.db.RefreshTokens().UpdateOne(r.Context(),
+		bson.M{"tokenHash": newHash},
+		bson.M{"$set": bson.M{"lastActiveAt": time.Now()}},
+	)
 
 	memberships := h.getUserMemberships(r.Context(), user.ID)
 
@@ -418,14 +466,13 @@ func (h *AuthHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 
 	now := time.Now()
 
-	// Atomically find and mark token as used
 	var token models.VerificationToken
 	err := h.db.VerificationTokens().FindOneAndUpdate(
 		r.Context(),
 		bson.M{
-			"token":  req.Token,
-			"type":   models.TokenTypeEmailVerification,
-			"usedAt": nil,
+			"token":     req.Token,
+			"type":      models.TokenTypeEmailVerification,
+			"usedAt":    nil,
 			"expiresAt": bson.M{"$gt": now},
 		},
 		bson.M{"$set": bson.M{"usedAt": now}},
@@ -459,7 +506,6 @@ func (h *AuthHandler) ResendVerification(w http.ResponseWriter, r *http.Request)
 
 	var user models.User
 	if err := h.db.Users().FindOne(r.Context(), bson.M{"email": req.Email}).Decode(&user); err != nil {
-		// Don't reveal whether email exists
 		respondWithJSON(w, http.StatusOK, map[string]string{"message": "If the email exists, a verification link has been sent"})
 		return
 	}
@@ -469,7 +515,6 @@ func (h *AuthHandler) ResendVerification(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Rate limit: check last verification sent
 	if user.LastVerificationSent != nil && time.Since(*user.LastVerificationSent) < 60*time.Second {
 		respondWithError(w, http.StatusTooManyRequests, "Please wait before requesting another verification email")
 		return
@@ -489,7 +534,6 @@ func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
 
-	// Always return success to prevent enumeration
 	defer respondWithJSON(w, http.StatusOK, map[string]string{"message": "If the email exists, a password reset link has been sent"})
 
 	var user models.User
@@ -540,7 +584,6 @@ func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 
 	now := time.Now()
 
-	// Atomically find and mark token as used
 	var token models.VerificationToken
 	err := h.db.VerificationTokens().FindOneAndUpdate(
 		r.Context(),
@@ -563,7 +606,6 @@ func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update password
 	h.db.Users().UpdateOne(r.Context(), bson.M{"_id": token.UserID}, bson.M{
 		"$set": bson.M{
 			"passwordHash": passwordHash,
@@ -571,7 +613,6 @@ func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 		},
 	})
 
-	// Revoke all refresh tokens (log out everywhere)
 	h.db.RefreshTokens().UpdateMany(r.Context(),
 		bson.M{"userId": token.UserID, "isRevoked": false},
 		bson.M{"$set": bson.M{"isRevoked": true}},
@@ -605,7 +646,6 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If user already has a password, require current password
 	if user.HasAuthMethod(models.AuthMethodPassword) {
 		if req.CurrentPassword == "" {
 			respondWithError(w, http.StatusBadRequest, "Current password is required")
@@ -629,7 +669,6 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 			"updatedAt":    time.Now(),
 		},
 	}
-	// Add password auth method if not present
 	if !user.HasAuthMethod(models.AuthMethodPassword) {
 		update["$addToSet"] = bson.M{"authMethods": models.AuthMethodPassword}
 	}
@@ -639,6 +678,410 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	h.syslog.High(r.Context(), fmt.Sprintf("Password changed by user %s (%s)", user.Email, user.ID.Hex()))
 
 	respondWithJSON(w, http.StatusOK, map[string]string{"message": "Password changed successfully"})
+}
+
+// --- MFA/TOTP ---
+
+func (h *AuthHandler) MFASetup(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetUserFromContext(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "Not authenticated")
+		return
+	}
+
+	if user.TOTPEnabled {
+		respondWithError(w, http.StatusConflict, "MFA is already enabled")
+		return
+	}
+
+	appName := "LastSaaS"
+	if h.getConfig != nil {
+		if name := h.getConfig("app.name"); name != "" {
+			appName = name
+		}
+	}
+
+	key, err := h.totpService.GenerateSecret(appName, user.Email)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to generate MFA secret")
+		return
+	}
+
+	// Store secret temporarily (not yet enabled)
+	h.db.Users().UpdateOne(r.Context(), bson.M{"_id": user.ID}, bson.M{
+		"$set": bson.M{"totpSecret": key.Secret(), "updatedAt": time.Now()},
+	})
+
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"secret": key.Secret(),
+		"qrUrl":  key.URL(),
+	})
+}
+
+func (h *AuthHandler) MFAVerifySetup(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetUserFromContext(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "Not authenticated")
+		return
+	}
+
+	var req struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Code == "" {
+		respondWithError(w, http.StatusBadRequest, "Code is required")
+		return
+	}
+
+	// Re-fetch user to get totpSecret
+	var freshUser models.User
+	if err := h.db.Users().FindOne(r.Context(), bson.M{"_id": user.ID}).Decode(&freshUser); err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to fetch user")
+		return
+	}
+
+	if freshUser.TOTPSecret == "" {
+		respondWithError(w, http.StatusBadRequest, "MFA setup has not been initiated")
+		return
+	}
+
+	if !h.totpService.ValidateCodeWithWindow(freshUser.TOTPSecret, req.Code) {
+		respondWithError(w, http.StatusUnauthorized, "Invalid verification code")
+		return
+	}
+
+	// Generate recovery codes
+	plainCodes, hashedCodes, err := h.totpService.GenerateRecoveryCodes(8)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to generate recovery codes")
+		return
+	}
+
+	now := time.Now()
+	h.db.Users().UpdateOne(r.Context(), bson.M{"_id": user.ID}, bson.M{
+		"$set": bson.M{
+			"totpEnabled":    true,
+			"totpVerifiedAt": now,
+			"recoveryCodes":  hashedCodes,
+			"updatedAt":      now,
+		},
+	})
+
+	h.syslog.HighWithUser(r.Context(), fmt.Sprintf("MFA enabled for user %s (%s)", user.Email, user.ID.Hex()), user.ID)
+
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"message":       "MFA enabled successfully",
+		"recoveryCodes": plainCodes,
+	})
+}
+
+func (h *AuthHandler) MFADisable(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetUserFromContext(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "Not authenticated")
+		return
+	}
+
+	var req struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Code == "" {
+		respondWithError(w, http.StatusBadRequest, "Code is required")
+		return
+	}
+
+	var freshUser models.User
+	if err := h.db.Users().FindOne(r.Context(), bson.M{"_id": user.ID}).Decode(&freshUser); err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to fetch user")
+		return
+	}
+
+	if !freshUser.TOTPEnabled {
+		respondWithError(w, http.StatusBadRequest, "MFA is not enabled")
+		return
+	}
+
+	// Try TOTP code first, then recovery code
+	valid := h.totpService.ValidateCodeWithWindow(freshUser.TOTPSecret, req.Code)
+	if !valid {
+		_, valid = h.totpService.ValidateRecoveryCode(req.Code, freshUser.RecoveryCodes)
+	}
+	if !valid {
+		respondWithError(w, http.StatusUnauthorized, "Invalid code")
+		return
+	}
+
+	h.db.Users().UpdateOne(r.Context(), bson.M{"_id": user.ID}, bson.M{
+		"$set": bson.M{
+			"totpEnabled":    false,
+			"totpSecret":     "",
+			"totpVerifiedAt": nil,
+			"recoveryCodes":  nil,
+			"updatedAt":      time.Now(),
+		},
+	})
+
+	h.syslog.HighWithUser(r.Context(), fmt.Sprintf("MFA disabled for user %s (%s)", user.Email, user.ID.Hex()), user.ID)
+
+	respondWithJSON(w, http.StatusOK, map[string]string{"message": "MFA disabled successfully"})
+}
+
+func (h *AuthHandler) MFAChallenge(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		MFAToken string `json:"mfaToken"`
+		Code     string `json:"code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	if req.MFAToken == "" || req.Code == "" {
+		respondWithError(w, http.StatusBadRequest, "MFA token and code are required")
+		return
+	}
+
+	claims, err := h.jwtService.ValidateAccessToken(req.MFAToken)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Invalid or expired MFA token")
+		return
+	}
+	if !claims.MFAPending {
+		respondWithError(w, http.StatusUnauthorized, "Invalid MFA token")
+		return
+	}
+
+	userID, err := primitive.ObjectIDFromHex(claims.UserID)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Invalid user")
+		return
+	}
+
+	var user models.User
+	if err := h.db.Users().FindOne(r.Context(), bson.M{"_id": userID}).Decode(&user); err != nil {
+		respondWithError(w, http.StatusUnauthorized, "User not found")
+		return
+	}
+
+	// Validate TOTP code or recovery code
+	valid := h.totpService.ValidateCodeWithWindow(user.TOTPSecret, req.Code)
+	recoveryIdx := -1
+	if !valid {
+		recoveryIdx, valid = h.totpService.ValidateRecoveryCode(req.Code, user.RecoveryCodes)
+	}
+	if !valid {
+		respondWithError(w, http.StatusUnauthorized, "Invalid code")
+		return
+	}
+
+	// If recovery code was used, remove it
+	if recoveryIdx >= 0 {
+		codes := user.RecoveryCodes
+		codes[recoveryIdx] = codes[len(codes)-1]
+		codes = codes[:len(codes)-1]
+		h.db.Users().UpdateOne(r.Context(), bson.M{"_id": user.ID}, bson.M{
+			"$set": bson.M{"recoveryCodes": codes},
+		})
+	}
+
+	// Generate full auth tokens
+	accessToken, err := h.jwtService.GenerateAccessToken(user.ID.Hex(), user.Email, user.DisplayName)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to generate token")
+		return
+	}
+	refreshToken, err := h.jwtService.GenerateRefreshToken(user.ID.Hex())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to generate token")
+		return
+	}
+	storeRefreshToken(r, h.db, user.ID, refreshToken, h.jwtService.GetRefreshTTL())
+
+	memberships := h.getUserMemberships(r.Context(), user.ID)
+
+	now := time.Now()
+	h.events.Emit(events.Event{
+		Type:      events.EventUserLoggedIn,
+		Timestamp: now,
+		Data:      map[string]interface{}{"userId": user.ID.Hex()},
+	})
+
+	respondWithJSON(w, http.StatusOK, AuthResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		User:         &user,
+		Memberships:  memberships,
+	})
+}
+
+func (h *AuthHandler) MFARegenerateRecoveryCodes(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetUserFromContext(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "Not authenticated")
+		return
+	}
+
+	var req struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Code == "" {
+		respondWithError(w, http.StatusBadRequest, "Code is required")
+		return
+	}
+
+	var freshUser models.User
+	if err := h.db.Users().FindOne(r.Context(), bson.M{"_id": user.ID}).Decode(&freshUser); err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to fetch user")
+		return
+	}
+
+	if !freshUser.TOTPEnabled {
+		respondWithError(w, http.StatusBadRequest, "MFA is not enabled")
+		return
+	}
+
+	if !h.totpService.ValidateCodeWithWindow(freshUser.TOTPSecret, req.Code) {
+		respondWithError(w, http.StatusUnauthorized, "Invalid code")
+		return
+	}
+
+	plainCodes, hashedCodes, err := h.totpService.GenerateRecoveryCodes(8)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to generate recovery codes")
+		return
+	}
+
+	h.db.Users().UpdateOne(r.Context(), bson.M{"_id": user.ID}, bson.M{
+		"$set": bson.M{"recoveryCodes": hashedCodes, "updatedAt": time.Now()},
+	})
+
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"recoveryCodes": plainCodes,
+	})
+}
+
+// --- Magic Link ---
+
+func (h *AuthHandler) MagicLinkRequest(w http.ResponseWriter, r *http.Request) {
+	if h.getConfig == nil || h.getConfig("auth.magic_link.enabled") != "true" {
+		respondWithError(w, http.StatusNotFound, "Magic link login is not enabled")
+		return
+	}
+
+	var req struct {
+		Email string `json:"email"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Email == "" {
+		respondWithError(w, http.StatusBadRequest, "Email is required")
+		return
+	}
+	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+
+	// Always return success to prevent enumeration
+	defer respondWithJSON(w, http.StatusOK, map[string]string{"message": "If the email exists, a sign-in link has been sent"})
+
+	var user models.User
+	if err := h.db.Users().FindOne(r.Context(), bson.M{"email": req.Email}).Decode(&user); err != nil {
+		return
+	}
+
+	magicToken := generateRandomToken()
+	verification := models.VerificationToken{
+		ID:        primitive.NewObjectID(),
+		UserID:    user.ID,
+		Token:     magicToken,
+		Type:      models.TokenTypeMagicLink,
+		ExpiresAt: time.Now().Add(15 * time.Minute),
+		CreatedAt: time.Now(),
+	}
+	h.db.VerificationTokens().InsertOne(r.Context(), verification)
+
+	go func() {
+		if h.emailService != nil {
+			if err := h.emailService.SendMagicLinkEmail(user.Email, user.DisplayName, magicToken); err != nil {
+				log.Printf("Failed to send magic link email: %v", err)
+			}
+		}
+	}()
+}
+
+func (h *AuthHandler) MagicLinkVerify(w http.ResponseWriter, r *http.Request) {
+	if h.getConfig == nil || h.getConfig("auth.magic_link.enabled") != "true" {
+		respondWithError(w, http.StatusNotFound, "Magic link login is not enabled")
+		return
+	}
+
+	var req struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Token == "" {
+		respondWithError(w, http.StatusBadRequest, "Token is required")
+		return
+	}
+
+	now := time.Now()
+
+	var token models.VerificationToken
+	err := h.db.VerificationTokens().FindOneAndUpdate(
+		r.Context(),
+		bson.M{
+			"token":     req.Token,
+			"type":      models.TokenTypeMagicLink,
+			"usedAt":    nil,
+			"expiresAt": bson.M{"$gt": now},
+		},
+		bson.M{"$set": bson.M{"usedAt": now}},
+	).Decode(&token)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid or expired magic link token")
+		return
+	}
+
+	var user models.User
+	if err := h.db.Users().FindOne(r.Context(), bson.M{"_id": token.UserID, "isActive": true}).Decode(&user); err != nil {
+		respondWithError(w, http.StatusUnauthorized, "User not found")
+		return
+	}
+
+	// Mark email as verified (they proved ownership)
+	h.db.Users().UpdateOne(r.Context(), bson.M{"_id": user.ID}, bson.M{
+		"$set":      bson.M{"emailVerified": true, "lastLoginAt": now, "updatedAt": now},
+		"$addToSet": bson.M{"authMethods": models.AuthMethodMagicLink},
+	})
+
+	// If user has MFA enabled, return MFA token
+	if user.TOTPEnabled {
+		mfaToken, err := h.jwtService.GenerateMFAToken(user.ID.Hex(), user.Email)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to generate token")
+			return
+		}
+		respondWithJSON(w, http.StatusOK, MFARequiredResponse{
+			MFARequired: true,
+			MFAToken:    mfaToken,
+		})
+		return
+	}
+
+	accessToken, err := h.jwtService.GenerateAccessToken(user.ID.Hex(), user.Email, user.DisplayName)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to generate token")
+		return
+	}
+	refreshToken, err := h.jwtService.GenerateRefreshToken(user.ID.Hex())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to generate token")
+		return
+	}
+	storeRefreshToken(r, h.db, user.ID, refreshToken, h.jwtService.GetRefreshTTL())
+
+	memberships := h.getUserMemberships(r.Context(), user.ID)
+
+	respondWithJSON(w, http.StatusOK, AuthResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		User:         &user,
+		Memberships:  memberships,
+	})
 }
 
 // --- Google OAuth ---
@@ -676,7 +1119,6 @@ func (h *AuthHandler) GoogleOAuthCallback(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Atomically find and delete state to prevent replay
 	result := h.db.OAuthStates().FindOneAndDelete(r.Context(), bson.M{
 		"state":     state,
 		"expiresAt": bson.M{"$gt": time.Now()},
@@ -702,13 +1144,10 @@ func (h *AuthHandler) GoogleOAuthCallback(w http.ResponseWriter, r *http.Request
 	var user models.User
 	var isNewUser bool
 
-	// Check if user exists by Google ID
 	err = h.db.Users().FindOne(r.Context(), bson.M{"googleId": googleUser.ID}).Decode(&user)
 	if err != nil {
-		// Check by email (account linking)
 		err = h.db.Users().FindOne(r.Context(), bson.M{"email": strings.ToLower(googleUser.Email)}).Decode(&user)
 		if err != nil {
-			// New user
 			isNewUser = true
 			user = models.User{
 				ID:            primitive.NewObjectID(),
@@ -726,17 +1165,27 @@ func (h *AuthHandler) GoogleOAuthCallback(w http.ResponseWriter, r *http.Request
 			h.createPersonalTenant(r.Context(), user.ID, user.DisplayName, now)
 			h.syslog.High(r.Context(), fmt.Sprintf("User created: %s (%s) via Google OAuth", user.Email, user.ID.Hex()))
 		} else {
-			// Link Google to existing account
 			h.db.Users().UpdateOne(r.Context(), bson.M{"_id": user.ID}, bson.M{
 				"$set":      bson.M{"googleId": googleUser.ID, "lastLoginAt": now, "updatedAt": now},
 				"$addToSet": bson.M{"authMethods": models.AuthMethodGoogle},
 			})
 		}
 	} else {
-		// Existing Google user — update login time
 		h.db.Users().UpdateOne(r.Context(), bson.M{"_id": user.ID}, bson.M{
 			"$set": bson.M{"lastLoginAt": now, "updatedAt": now},
 		})
+	}
+
+	// Check MFA
+	if user.TOTPEnabled {
+		mfaToken, err := h.jwtService.GenerateMFAToken(user.ID.Hex(), user.Email)
+		if err != nil {
+			http.Redirect(w, r, h.frontendURL+"/login?error=token_generation_failed", http.StatusTemporaryRedirect)
+			return
+		}
+		redirectURL := fmt.Sprintf("%s/auth/mfa#mfa_token=%s", h.frontendURL, mfaToken)
+		http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
+		return
 	}
 
 	accessToken, err := h.jwtService.GenerateAccessToken(user.ID.Hex(), user.Email, user.DisplayName)
@@ -749,7 +1198,7 @@ func (h *AuthHandler) GoogleOAuthCallback(w http.ResponseWriter, r *http.Request
 		http.Redirect(w, r, h.frontendURL+"/login?error=token_generation_failed", http.StatusTemporaryRedirect)
 		return
 	}
-	storeRefreshToken(r.Context(), h.db, user.ID, refreshToken, h.jwtService.GetRefreshTTL())
+	storeRefreshToken(r, h.db, user.ID, refreshToken, h.jwtService.GetRefreshTTL())
 
 	if isNewUser {
 		h.events.Emit(events.Event{
@@ -759,10 +1208,442 @@ func (h *AuthHandler) GoogleOAuthCallback(w http.ResponseWriter, r *http.Request
 		})
 	}
 
-	// Redirect to frontend with tokens in URL fragment
 	redirectURL := fmt.Sprintf("%s/auth/callback#access_token=%s&refresh_token=%s",
 		h.frontendURL, accessToken, refreshToken)
 	http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
+}
+
+// --- GitHub OAuth ---
+
+func (h *AuthHandler) GitHubOAuth(w http.ResponseWriter, r *http.Request) {
+	if h.githubOAuth == nil {
+		respondWithError(w, http.StatusNotImplemented, "GitHub OAuth is not configured")
+		return
+	}
+
+	state := generateRandomToken()
+	oauthState := models.OAuthState{
+		ID:        primitive.NewObjectID(),
+		State:     state,
+		ExpiresAt: time.Now().Add(10 * time.Minute),
+		CreatedAt: time.Now(),
+	}
+	h.db.OAuthStates().InsertOne(r.Context(), oauthState)
+
+	authURL := h.githubOAuth.GetAuthURL(state)
+	http.Redirect(w, r, authURL, http.StatusTemporaryRedirect)
+}
+
+func (h *AuthHandler) GitHubOAuthCallback(w http.ResponseWriter, r *http.Request) {
+	if h.githubOAuth == nil {
+		respondWithError(w, http.StatusNotImplemented, "GitHub OAuth is not configured")
+		return
+	}
+
+	state := r.URL.Query().Get("state")
+	code := r.URL.Query().Get("code")
+
+	if state == "" || code == "" {
+		http.Redirect(w, r, h.frontendURL+"/login?error=oauth_failed", http.StatusTemporaryRedirect)
+		return
+	}
+
+	result := h.db.OAuthStates().FindOneAndDelete(r.Context(), bson.M{
+		"state":     state,
+		"expiresAt": bson.M{"$gt": time.Now()},
+	})
+	if result.Err() != nil {
+		http.Redirect(w, r, h.frontendURL+"/login?error=invalid_state", http.StatusTemporaryRedirect)
+		return
+	}
+
+	token, err := h.githubOAuth.ExchangeCode(r.Context(), code)
+	if err != nil {
+		http.Redirect(w, r, h.frontendURL+"/login?error=oauth_exchange_failed", http.StatusTemporaryRedirect)
+		return
+	}
+
+	ghUser, err := h.githubOAuth.GetUserInfo(r.Context(), token)
+	if err != nil {
+		http.Redirect(w, r, h.frontendURL+"/login?error=oauth_user_info_failed", http.StatusTemporaryRedirect)
+		return
+	}
+
+	now := time.Now()
+	var user models.User
+	var isNewUser bool
+	ghIDStr := fmt.Sprintf("%d", ghUser.ID)
+
+	err = h.db.Users().FindOne(r.Context(), bson.M{"githubId": ghIDStr}).Decode(&user)
+	if err != nil {
+		err = h.db.Users().FindOne(r.Context(), bson.M{"email": strings.ToLower(ghUser.Email)}).Decode(&user)
+		if err != nil {
+			isNewUser = true
+			displayName := ghUser.Name
+			if displayName == "" {
+				displayName = ghUser.Login
+			}
+			user = models.User{
+				ID:            primitive.NewObjectID(),
+				Email:         strings.ToLower(ghUser.Email),
+				DisplayName:   displayName,
+				GitHubID:      ghIDStr,
+				AuthMethods:   []models.AuthMethod{models.AuthMethodGitHub},
+				EmailVerified: true,
+				IsActive:      true,
+				CreatedAt:     now,
+				UpdatedAt:     now,
+				LastLoginAt:   &now,
+			}
+			h.db.Users().InsertOne(r.Context(), user)
+			h.createPersonalTenant(r.Context(), user.ID, user.DisplayName, now)
+			h.syslog.High(r.Context(), fmt.Sprintf("User created: %s (%s) via GitHub OAuth", user.Email, user.ID.Hex()))
+		} else {
+			h.db.Users().UpdateOne(r.Context(), bson.M{"_id": user.ID}, bson.M{
+				"$set":      bson.M{"githubId": ghIDStr, "lastLoginAt": now, "updatedAt": now},
+				"$addToSet": bson.M{"authMethods": models.AuthMethodGitHub},
+			})
+		}
+	} else {
+		h.db.Users().UpdateOne(r.Context(), bson.M{"_id": user.ID}, bson.M{
+			"$set": bson.M{"lastLoginAt": now, "updatedAt": now},
+		})
+	}
+
+	if user.TOTPEnabled {
+		mfaToken, err := h.jwtService.GenerateMFAToken(user.ID.Hex(), user.Email)
+		if err != nil {
+			http.Redirect(w, r, h.frontendURL+"/login?error=token_generation_failed", http.StatusTemporaryRedirect)
+			return
+		}
+		redirectURL := fmt.Sprintf("%s/auth/mfa#mfa_token=%s", h.frontendURL, mfaToken)
+		http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
+		return
+	}
+
+	accessToken, err := h.jwtService.GenerateAccessToken(user.ID.Hex(), user.Email, user.DisplayName)
+	if err != nil {
+		http.Redirect(w, r, h.frontendURL+"/login?error=token_generation_failed", http.StatusTemporaryRedirect)
+		return
+	}
+	refreshToken, err := h.jwtService.GenerateRefreshToken(user.ID.Hex())
+	if err != nil {
+		http.Redirect(w, r, h.frontendURL+"/login?error=token_generation_failed", http.StatusTemporaryRedirect)
+		return
+	}
+	storeRefreshToken(r, h.db, user.ID, refreshToken, h.jwtService.GetRefreshTTL())
+
+	if isNewUser {
+		h.events.Emit(events.Event{
+			Type:      events.EventUserRegistered,
+			Timestamp: now,
+			Data:      map[string]interface{}{"userId": user.ID.Hex(), "method": "github"},
+		})
+	}
+
+	redirectURL := fmt.Sprintf("%s/auth/callback#access_token=%s&refresh_token=%s",
+		h.frontendURL, accessToken, refreshToken)
+	http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
+}
+
+// --- Microsoft OAuth ---
+
+func (h *AuthHandler) MicrosoftOAuth(w http.ResponseWriter, r *http.Request) {
+	if h.microsoftOAuth == nil {
+		respondWithError(w, http.StatusNotImplemented, "Microsoft OAuth is not configured")
+		return
+	}
+
+	state := generateRandomToken()
+	oauthState := models.OAuthState{
+		ID:        primitive.NewObjectID(),
+		State:     state,
+		ExpiresAt: time.Now().Add(10 * time.Minute),
+		CreatedAt: time.Now(),
+	}
+	h.db.OAuthStates().InsertOne(r.Context(), oauthState)
+
+	authURL := h.microsoftOAuth.GetAuthURL(state)
+	http.Redirect(w, r, authURL, http.StatusTemporaryRedirect)
+}
+
+func (h *AuthHandler) MicrosoftOAuthCallback(w http.ResponseWriter, r *http.Request) {
+	if h.microsoftOAuth == nil {
+		respondWithError(w, http.StatusNotImplemented, "Microsoft OAuth is not configured")
+		return
+	}
+
+	state := r.URL.Query().Get("state")
+	code := r.URL.Query().Get("code")
+
+	if state == "" || code == "" {
+		http.Redirect(w, r, h.frontendURL+"/login?error=oauth_failed", http.StatusTemporaryRedirect)
+		return
+	}
+
+	result := h.db.OAuthStates().FindOneAndDelete(r.Context(), bson.M{
+		"state":     state,
+		"expiresAt": bson.M{"$gt": time.Now()},
+	})
+	if result.Err() != nil {
+		http.Redirect(w, r, h.frontendURL+"/login?error=invalid_state", http.StatusTemporaryRedirect)
+		return
+	}
+
+	token, err := h.microsoftOAuth.ExchangeCode(r.Context(), code)
+	if err != nil {
+		http.Redirect(w, r, h.frontendURL+"/login?error=oauth_exchange_failed", http.StatusTemporaryRedirect)
+		return
+	}
+
+	msUser, err := h.microsoftOAuth.GetUserInfo(r.Context(), token)
+	if err != nil {
+		http.Redirect(w, r, h.frontendURL+"/login?error=oauth_user_info_failed", http.StatusTemporaryRedirect)
+		return
+	}
+
+	userEmail := msUser.GetEmail()
+	if userEmail == "" {
+		http.Redirect(w, r, h.frontendURL+"/login?error=oauth_user_info_failed", http.StatusTemporaryRedirect)
+		return
+	}
+
+	now := time.Now()
+	var user models.User
+	var isNewUser bool
+
+	err = h.db.Users().FindOne(r.Context(), bson.M{"microsoftId": msUser.ID}).Decode(&user)
+	if err != nil {
+		err = h.db.Users().FindOne(r.Context(), bson.M{"email": strings.ToLower(userEmail)}).Decode(&user)
+		if err != nil {
+			isNewUser = true
+			displayName := msUser.DisplayName
+			if displayName == "" {
+				displayName = msUser.GivenName
+			}
+			user = models.User{
+				ID:            primitive.NewObjectID(),
+				Email:         strings.ToLower(userEmail),
+				DisplayName:   displayName,
+				MicrosoftID:   msUser.ID,
+				AuthMethods:   []models.AuthMethod{models.AuthMethodMicrosoft},
+				EmailVerified: true,
+				IsActive:      true,
+				CreatedAt:     now,
+				UpdatedAt:     now,
+				LastLoginAt:   &now,
+			}
+			h.db.Users().InsertOne(r.Context(), user)
+			h.createPersonalTenant(r.Context(), user.ID, user.DisplayName, now)
+			h.syslog.High(r.Context(), fmt.Sprintf("User created: %s (%s) via Microsoft OAuth", user.Email, user.ID.Hex()))
+		} else {
+			h.db.Users().UpdateOne(r.Context(), bson.M{"_id": user.ID}, bson.M{
+				"$set":      bson.M{"microsoftId": msUser.ID, "lastLoginAt": now, "updatedAt": now},
+				"$addToSet": bson.M{"authMethods": models.AuthMethodMicrosoft},
+			})
+		}
+	} else {
+		h.db.Users().UpdateOne(r.Context(), bson.M{"_id": user.ID}, bson.M{
+			"$set": bson.M{"lastLoginAt": now, "updatedAt": now},
+		})
+	}
+
+	if user.TOTPEnabled {
+		mfaToken, err := h.jwtService.GenerateMFAToken(user.ID.Hex(), user.Email)
+		if err != nil {
+			http.Redirect(w, r, h.frontendURL+"/login?error=token_generation_failed", http.StatusTemporaryRedirect)
+			return
+		}
+		redirectURL := fmt.Sprintf("%s/auth/mfa#mfa_token=%s", h.frontendURL, mfaToken)
+		http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
+		return
+	}
+
+	accessToken, err := h.jwtService.GenerateAccessToken(user.ID.Hex(), user.Email, user.DisplayName)
+	if err != nil {
+		http.Redirect(w, r, h.frontendURL+"/login?error=token_generation_failed", http.StatusTemporaryRedirect)
+		return
+	}
+	refreshToken, err := h.jwtService.GenerateRefreshToken(user.ID.Hex())
+	if err != nil {
+		http.Redirect(w, r, h.frontendURL+"/login?error=token_generation_failed", http.StatusTemporaryRedirect)
+		return
+	}
+	storeRefreshToken(r, h.db, user.ID, refreshToken, h.jwtService.GetRefreshTTL())
+
+	if isNewUser {
+		h.events.Emit(events.Event{
+			Type:      events.EventUserRegistered,
+			Timestamp: now,
+			Data:      map[string]interface{}{"userId": user.ID.Hex(), "method": "microsoft"},
+		})
+	}
+
+	redirectURL := fmt.Sprintf("%s/auth/callback#access_token=%s&refresh_token=%s",
+		h.frontendURL, accessToken, refreshToken)
+	http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
+}
+
+// --- Session Management ---
+
+func (h *AuthHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetUserFromContext(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "Not authenticated")
+		return
+	}
+
+	cursor, err := h.db.RefreshTokens().Find(r.Context(), bson.M{
+		"userId":    user.ID,
+		"isRevoked": false,
+		"expiresAt": bson.M{"$gt": time.Now()},
+	}, options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}}))
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to fetch sessions")
+		return
+	}
+	defer cursor.Close(r.Context())
+
+	var tokens []models.RefreshToken
+	if err := cursor.All(r.Context(), &tokens); err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to fetch sessions")
+		return
+	}
+
+	// Determine current session by matching against the Authorization header token
+	currentTokenHash := ""
+	authHeader := r.Header.Get("Authorization")
+	if parts := strings.SplitN(authHeader, " ", 2); len(parts) == 2 {
+		// We can't directly match access token to refresh token, so we mark based on most recent
+	}
+
+	type sessionInfo struct {
+		ID           string     `json:"id"`
+		DeviceInfo   string     `json:"deviceInfo"`
+		IPAddress    string     `json:"ipAddress"`
+		CreatedAt    time.Time  `json:"createdAt"`
+		LastActiveAt time.Time  `json:"lastActiveAt"`
+		IsCurrent    bool       `json:"isCurrent"`
+	}
+
+	_ = currentTokenHash
+
+	sessions := make([]sessionInfo, 0, len(tokens))
+	for i, t := range tokens {
+		sessions = append(sessions, sessionInfo{
+			ID:           t.ID.Hex(),
+			DeviceInfo:   t.DeviceInfo,
+			IPAddress:    t.IPAddress,
+			CreatedAt:    t.CreatedAt,
+			LastActiveAt: t.LastActiveAt,
+			IsCurrent:    i == 0, // Most recent session is likely current
+		})
+	}
+
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"sessions": sessions,
+	})
+}
+
+func (h *AuthHandler) RevokeSession(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetUserFromContext(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "Not authenticated")
+		return
+	}
+
+	sessionID := strings.TrimPrefix(r.URL.Path, "/api/auth/sessions/")
+	if sessionID == "" {
+		respondWithError(w, http.StatusBadRequest, "Session ID is required")
+		return
+	}
+
+	objID, err := primitive.ObjectIDFromHex(sessionID)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid session ID")
+		return
+	}
+
+	result, err := h.db.RefreshTokens().UpdateOne(r.Context(),
+		bson.M{"_id": objID, "userId": user.ID},
+		bson.M{"$set": bson.M{"isRevoked": true}},
+	)
+	if err != nil || result.ModifiedCount == 0 {
+		respondWithError(w, http.StatusNotFound, "Session not found")
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, map[string]string{"message": "Session revoked"})
+}
+
+func (h *AuthHandler) RevokeAllSessions(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetUserFromContext(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "Not authenticated")
+		return
+	}
+
+	// Revoke all except the most recent active session
+	h.db.RefreshTokens().UpdateMany(r.Context(),
+		bson.M{
+			"userId":    user.ID,
+			"isRevoked": false,
+		},
+		bson.M{"$set": bson.M{"isRevoked": true}},
+	)
+
+	respondWithJSON(w, http.StatusOK, map[string]string{"message": "All other sessions revoked"})
+}
+
+// --- Preferences ---
+
+func (h *AuthHandler) UpdatePreferences(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetUserFromContext(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "Not authenticated")
+		return
+	}
+
+	var req struct {
+		ThemePreference string `json:"themePreference"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	update := bson.M{"updatedAt": time.Now()}
+	if req.ThemePreference != "" {
+		if req.ThemePreference != "dark" && req.ThemePreference != "light" && req.ThemePreference != "system" {
+			respondWithError(w, http.StatusBadRequest, "Invalid theme preference")
+			return
+		}
+		update["themePreference"] = req.ThemePreference
+	}
+
+	h.db.Users().UpdateOne(r.Context(), bson.M{"_id": user.ID}, bson.M{"$set": update})
+
+	respondWithJSON(w, http.StatusOK, map[string]string{"message": "Preferences updated"})
+}
+
+// --- Onboarding ---
+
+func (h *AuthHandler) CompleteOnboarding(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetUserFromContext(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "Not authenticated")
+		return
+	}
+
+	now := time.Now()
+	h.db.Users().UpdateOne(r.Context(), bson.M{"_id": user.ID}, bson.M{
+		"$set": bson.M{
+			"onboardingCompletedAt": now,
+			"updatedAt":             now,
+		},
+	})
+
+	respondWithJSON(w, http.StatusOK, map[string]string{"message": "Onboarding completed"})
 }
 
 // --- Accept Invitation (for existing users) ---
@@ -903,7 +1784,6 @@ func (h *AuthHandler) acceptInvitationForUser(ctx context.Context, userID primit
 		return fmt.Errorf("invalid or expired invitation")
 	}
 
-	// Check if already a member
 	count, _ := h.db.TenantMemberships().CountDocuments(ctx, bson.M{
 		"userId":   userID,
 		"tenantId": invitation.TenantID,
@@ -939,17 +1819,23 @@ func (h *AuthHandler) acceptInvitationForUser(ctx context.Context, userID primit
 
 // --- Token utilities ---
 
-func storeRefreshToken(ctx context.Context, database *db.MongoDB, userID primitive.ObjectID, rawToken string, ttl time.Duration) {
+func storeRefreshToken(r *http.Request, database *db.MongoDB, userID primitive.ObjectID, rawToken string, ttl time.Duration) {
 	tokenHash := hashToken(rawToken)
+	now := time.Now()
+
 	rt := models.RefreshToken{
-		ID:        primitive.NewObjectID(),
-		UserID:    userID,
-		TokenHash: tokenHash,
-		ExpiresAt: time.Now().Add(ttl),
-		CreatedAt: time.Now(),
-		IsRevoked: false,
+		ID:           primitive.NewObjectID(),
+		UserID:       userID,
+		TokenHash:    tokenHash,
+		IPAddress:    middleware.GetClientIP(r),
+		UserAgent:    r.UserAgent(),
+		DeviceInfo:   auth.ParseUserAgent(r.UserAgent()),
+		ExpiresAt:    now.Add(ttl),
+		CreatedAt:    now,
+		LastActiveAt: now,
+		IsRevoked:    false,
 	}
-	database.RefreshTokens().InsertOne(ctx, rt)
+	database.RefreshTokens().InsertOne(r.Context(), rt)
 }
 
 func hashToken(raw string) string {

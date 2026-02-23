@@ -135,6 +135,37 @@ func (l *Logger) HighWithUser(ctx context.Context, message string, userID primit
 	l.log(ctx, models.LogHigh, message, &userID)
 }
 
+// LogTenantActivity writes a tenant-scoped audit log entry.
+func (l *Logger) LogTenantActivity(ctx context.Context, severity models.LogSeverity, message string, userID, tenantID primitive.ObjectID, action string, metadata map[string]interface{}) {
+	if l.getConfig != nil {
+		minLevel := models.LogSeverity(l.getConfig("log.min_level"))
+		if minLevel == "none" {
+			return
+		}
+		minRank, minOK := severityOrder[minLevel]
+		sevRank, sevOK := severityOrder[severity]
+		if minOK && sevOK && sevRank > minRank {
+			return
+		}
+	}
+
+	message = sanitize(message)
+
+	entry := models.SystemLog{
+		ID:        primitive.NewObjectID(),
+		Severity:  severity,
+		Message:   message,
+		UserID:    &userID,
+		TenantID:  &tenantID,
+		Action:    action,
+		Metadata:  metadata,
+		CreatedAt: time.Now(),
+	}
+	if _, err := l.db.SystemLogs().InsertOne(ctx, entry); err != nil {
+		log.Printf("syslog: failed to write tenant activity log: %v", err)
+	}
+}
+
 // sanitize ensures the message is valid UTF-8, strips control characters,
 // and enforces the maximum length.
 func sanitize(s string) string {

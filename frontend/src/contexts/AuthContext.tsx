@@ -1,15 +1,22 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { authApi, setAuthToken } from '../api/client';
-import type { User, MembershipInfo } from '../types';
+import type { User, MembershipInfo, AuthResponse, MFARequiredResponse } from '../types';
+
+interface MFAPendingState {
+  mfaToken: string;
+}
 
 interface AuthContextType {
   user: User | null;
   memberships: MembershipInfo[];
   isAuthenticated: boolean;
   isLoading: boolean;
+  mfaPending: MFAPendingState | null;
   login: (email: string, password: string) => Promise<void>;
   register: (data: { email: string; password: string; displayName: string; invitationToken?: string }) => Promise<void>;
   loginWithTokens: (accessToken: string, refreshToken: string) => Promise<void>;
+  completeMfaChallenge: (mfaToken: string, code: string) => Promise<void>;
+  clearMfaPending: () => void;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -19,10 +26,15 @@ const AuthContext = createContext<AuthContextType | null>(null);
 const ACCESS_TOKEN_KEY = 'lastsaas_access_token';
 const REFRESH_TOKEN_KEY = 'lastsaas_refresh_token';
 
+function isMfaRequired(data: AuthResponse | MFARequiredResponse): data is MFARequiredResponse {
+  return 'mfaRequired' in data && data.mfaRequired === true;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [memberships, setMemberships] = useState<MembershipInfo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [mfaPending, setMfaPending] = useState<MFAPendingState | null>(null);
 
   const isAuthenticated = !!user;
 
@@ -44,6 +56,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [clearAuth]);
 
+  const handleAuthResponse = useCallback((data: AuthResponse) => {
+    localStorage.setItem(ACCESS_TOKEN_KEY, data.accessToken);
+    localStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken);
+    setAuthToken(data.accessToken);
+    setUser(data.user);
+    setMemberships(data.memberships);
+    setMfaPending(null);
+  }, []);
+
   const loginWithTokens = useCallback(async (accessToken: string, refreshToken: string) => {
     localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
     localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
@@ -53,11 +74,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     const data = await authApi.login({ email, password });
-    localStorage.setItem(ACCESS_TOKEN_KEY, data.accessToken);
-    localStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken);
-    setAuthToken(data.accessToken);
-    setUser(data.user);
-    setMemberships(data.memberships);
+    if (isMfaRequired(data)) {
+      setMfaPending({ mfaToken: data.mfaToken });
+      return;
+    }
+    handleAuthResponse(data as AuthResponse);
+  }, [handleAuthResponse]);
+
+  const completeMfaChallenge = useCallback(async (mfaToken: string, code: string) => {
+    const data = await authApi.mfaChallenge(mfaToken, code);
+    handleAuthResponse(data);
+  }, [handleAuthResponse]);
+
+  const clearMfaPending = useCallback(() => {
+    setMfaPending(null);
   }, []);
 
   const register = useCallback(async (data: { email: string; password: string; displayName: string; invitationToken?: string }) => {
@@ -93,7 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refreshUser]);
 
   return (
-    <AuthContext.Provider value={{ user, memberships, isAuthenticated, isLoading, login, register, loginWithTokens, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, memberships, isAuthenticated, isLoading, mfaPending, login, register, loginWithTokens, completeMfaChallenge, clearMfaPending, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

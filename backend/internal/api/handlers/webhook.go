@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"lastsaas/internal/db"
@@ -136,6 +137,12 @@ func (h *WebhookHandler) handleCheckoutCompleted(ctx context.Context, event stri
 		}
 		if periodEnd != nil {
 			updates["currentPeriodEnd"] = periodEnd
+		}
+		// Store seat quantity for per-seat plans
+		if seatQtyStr := session.Metadata["seatQuantity"]; seatQtyStr != "" {
+			if seatQty, err := strconv.Atoi(seatQtyStr); err == nil && seatQty > 0 {
+				updates["seatQuantity"] = seatQty
+			}
 		}
 		h.db.Tenants().UpdateOne(ctx, bson.M{"_id": tenantID}, bson.M{"$set": updates})
 
@@ -402,6 +409,24 @@ func (h *WebhookHandler) handleSubscriptionUpdated(ctx context.Context, event st
 		})
 	}
 
+	// Sync seat quantity for per-seat plans
+	if tenant.PlanID != nil {
+		var plan models.Plan
+		if h.db.Plans().FindOne(ctx, bson.M{"_id": *tenant.PlanID}).Decode(&plan) == nil && plan.PricingModel == models.PricingModelPerSeat {
+			if sub.Items != nil {
+				maxQty := int64(0)
+				for _, item := range sub.Items.Data {
+					if item.Quantity > maxQty {
+						maxQty = item.Quantity
+					}
+				}
+				if maxQty > 0 {
+					updates["seatQuantity"] = int(maxQty)
+				}
+			}
+		}
+	}
+
 	h.db.Tenants().UpdateOne(ctx, bson.M{"_id": tenant.ID}, bson.M{"$set": updates})
 }
 
@@ -428,6 +453,7 @@ func (h *WebhookHandler) handleSubscriptionDeleted(ctx context.Context, event st
 		"currentPeriodEnd":     nil,
 		"canceledAt":           nil,
 		"subscriptionCredits":  int64(0),
+		"seatQuantity":         0,
 		"updatedAt":            time.Now(),
 	}
 	if err == nil {

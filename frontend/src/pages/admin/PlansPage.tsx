@@ -165,7 +165,15 @@ export default function PlansPage() {
                   )}
                 </td>
                 <td className="px-6 py-4 text-dark-300 text-sm">
-                  {plan.monthlyPriceCents === 0 ? 'Free' : `${formatPrice(plan.monthlyPriceCents)}/mo`}
+                  {plan.pricingModel === 'per_seat' ? (
+                    <>
+                      {plan.monthlyPriceCents > 0 && `${formatPrice(plan.monthlyPriceCents)} + `}
+                      {formatPrice(plan.perSeatPriceCents)}/seat/mo
+                      {plan.includedSeats > 0 && <span className="text-xs text-dark-500 ml-1">({plan.includedSeats} incl)</span>}
+                    </>
+                  ) : (
+                    plan.monthlyPriceCents === 0 ? 'Free' : `${formatPrice(plan.monthlyPriceCents)}/mo`
+                  )}
                   {plan.annualDiscountPct > 0 && (
                     <span className="ml-1 text-xs text-accent-green">({plan.annualDiscountPct}% annual)</span>
                   )}
@@ -443,6 +451,11 @@ function PlanFormModal({ plan, subscriberCount, onClose, onSaved }: PlanFormModa
   const [creditResetPolicy, setCreditResetPolicy] = useState<'reset' | 'accrue'>(plan?.creditResetPolicy ?? 'reset');
   const [bonusCredits, setBonusCredits] = useState(String(plan?.bonusCredits ?? 0));
   const [userLimit, setUserLimit] = useState(String(plan?.userLimit ?? 0));
+  const [pricingModel, setPricingModel] = useState<'flat' | 'per_seat'>(plan?.pricingModel ?? 'flat');
+  const [perSeatPriceDollars, setPerSeatPriceDollars] = useState(plan ? (plan.perSeatPriceCents / 100).toFixed(2) : '0.00');
+  const [includedSeats, setIncludedSeats] = useState(String(plan?.includedSeats ?? 0));
+  const [minSeats, setMinSeats] = useState(String(plan?.minSeats ?? 1));
+  const [maxSeats, setMaxSeats] = useState(String(plan?.maxSeats ?? 0));
   const [entitlements, setEntitlements] = useState<Record<string, EntitlementValue>>(plan?.entitlements ?? {});
 
   const [saving, setSaving] = useState(false);
@@ -468,6 +481,8 @@ function PlanFormModal({ plan, subscriberCount, onClose, onSaved }: PlanFormModa
       return;
     }
 
+    const perSeatPriceCents = Math.round(parseFloat(perSeatPriceDollars || '0') * 100);
+
     const payload = {
       name: name.trim(),
       description: description.trim(),
@@ -477,6 +492,11 @@ function PlanFormModal({ plan, subscriberCount, onClose, onSaved }: PlanFormModa
       creditResetPolicy,
       bonusCredits: parseInt(bonusCredits) || 0,
       userLimit: parseInt(userLimit) || 0,
+      pricingModel,
+      perSeatPriceCents,
+      includedSeats: parseInt(includedSeats) || 0,
+      minSeats: parseInt(minSeats) || 1,
+      maxSeats: parseInt(maxSeats) || 0,
       entitlements,
     };
 
@@ -601,6 +621,90 @@ function PlanFormModal({ plan, subscriberCount, onClose, onSaved }: PlanFormModa
                 <p className="text-xs text-dark-500 mt-1">Set to 0 to hide annual option</p>
               </div>
             </div>
+          </div>
+
+          {/* Pricing Model */}
+          <div>
+            <h4 className="text-sm font-semibold text-dark-300 uppercase tracking-wider mb-3">Pricing Model</h4>
+            <div className="flex gap-3 mb-3">
+              <button
+                type="button"
+                onClick={() => setPricingModel('flat')}
+                className={`flex-1 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                  pricingModel === 'flat' ? 'bg-primary-500/20 border-primary-500/50 text-primary-400' : 'bg-dark-800 border-dark-700 text-dark-400 hover:text-white'
+                }`}
+              >
+                Flat Rate
+              </button>
+              <button
+                type="button"
+                onClick={() => setPricingModel('per_seat')}
+                className={`flex-1 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                  pricingModel === 'per_seat' ? 'bg-primary-500/20 border-primary-500/50 text-primary-400' : 'bg-dark-800 border-dark-700 text-dark-400 hover:text-white'
+                }`}
+              >
+                Per Seat
+              </button>
+            </div>
+
+            {pricingModel === 'per_seat' && (
+              <div className="space-y-3 p-3 bg-dark-800/30 rounded-lg border border-dark-700/50">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-dark-300 mb-1">Per Seat Price ($/mo)</label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={perSeatPriceDollars}
+                      onChange={e => setPerSeatPriceDollars(e.target.value)}
+                      onFocus={e => e.target.select()}
+                      onBlur={() => { const n = parseFloat(perSeatPriceDollars); setPerSeatPriceDollars(isNaN(n) ? '0.00' : n.toFixed(2)); }}
+                      className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-dark-300 mb-1">Included Seats</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={includedSeats}
+                      onChange={e => setIncludedSeats(e.target.value)}
+                      onFocus={e => e.target.select()}
+                      onBlur={() => setIncludedSeats(String(parseInt(includedSeats) || 0))}
+                      className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none"
+                    />
+                    <p className="text-xs text-dark-500 mt-1">Seats included in base price (0 = purely per-seat)</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-dark-300 mb-1">Min Seats</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={minSeats}
+                      onChange={e => setMinSeats(e.target.value)}
+                      onFocus={e => e.target.select()}
+                      onBlur={() => setMinSeats(String(parseInt(minSeats) || 1))}
+                      className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-dark-300 mb-1">Max Seats</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={maxSeats}
+                      onChange={e => setMaxSeats(e.target.value)}
+                      onFocus={e => e.target.select()}
+                      onBlur={() => setMaxSeats(String(parseInt(maxSeats) || 0))}
+                      className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none"
+                    />
+                    <p className="text-xs text-dark-500 mt-1">0 = unlimited</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Credits */}

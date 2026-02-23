@@ -156,15 +156,20 @@ func (h *PlansHandler) ListEntitlementKeys(w http.ResponseWriter, r *http.Reques
 }
 
 type planRequest struct {
-	Name                 string                              `json:"name"`
-	Description          string                              `json:"description"`
-	MonthlyPriceCents    int64                               `json:"monthlyPriceCents"`
-	AnnualDiscountPct    int                                 `json:"annualDiscountPct"`
-	UsageCreditsPerMonth int64                               `json:"usageCreditsPerMonth"`
-	CreditResetPolicy    string                              `json:"creditResetPolicy"`
-	BonusCredits         int64                               `json:"bonusCredits"`
-	UserLimit            int                                 `json:"userLimit"`
-	Entitlements         map[string]models.EntitlementValue   `json:"entitlements"`
+	Name                 string                             `json:"name"`
+	Description          string                             `json:"description"`
+	PricingModel         string                             `json:"pricingModel"`
+	MonthlyPriceCents    int64                              `json:"monthlyPriceCents"`
+	AnnualDiscountPct    int                                `json:"annualDiscountPct"`
+	PerSeatPriceCents    int64                              `json:"perSeatPriceCents"`
+	IncludedSeats        int                                `json:"includedSeats"`
+	MinSeats             int                                `json:"minSeats"`
+	MaxSeats             int                                `json:"maxSeats"`
+	UsageCreditsPerMonth int64                              `json:"usageCreditsPerMonth"`
+	CreditResetPolicy    string                             `json:"creditResetPolicy"`
+	BonusCredits         int64                              `json:"bonusCredits"`
+	UserLimit            int                                `json:"userLimit"`
+	Entitlements         map[string]models.EntitlementValue `json:"entitlements"`
 }
 
 func validatePlanRequest(req *planRequest) error {
@@ -192,6 +197,29 @@ func validatePlanRequest(req *planRequest) error {
 	}
 	if req.UserLimit < 0 {
 		return fmt.Errorf("user limit must be >= 0")
+	}
+	if req.PricingModel == "" {
+		req.PricingModel = "flat"
+	}
+	if req.PricingModel != "flat" && req.PricingModel != "per_seat" {
+		return fmt.Errorf("pricing model must be 'flat' or 'per_seat'")
+	}
+	if req.PricingModel == "per_seat" {
+		if req.PerSeatPriceCents < 0 {
+			return fmt.Errorf("per-seat price must be >= 0")
+		}
+		if req.IncludedSeats < 0 {
+			return fmt.Errorf("included seats must be >= 0")
+		}
+		if req.MinSeats < 0 {
+			return fmt.Errorf("min seats must be >= 0")
+		}
+		if req.MaxSeats < 0 {
+			return fmt.Errorf("max seats must be >= 0")
+		}
+		if req.MaxSeats > 0 && req.MinSeats > req.MaxSeats {
+			return fmt.Errorf("min seats cannot exceed max seats")
+		}
 	}
 	for k, v := range req.Entitlements {
 		if v.Type != models.EntitlementTypeBool && v.Type != models.EntitlementTypeNumeric {
@@ -229,8 +257,13 @@ func (h *PlansHandler) CreatePlan(w http.ResponseWriter, r *http.Request) {
 	plan := models.Plan{
 		Name:                 req.Name,
 		Description:          strings.TrimSpace(req.Description),
+		PricingModel:         models.PricingModel(req.PricingModel),
 		MonthlyPriceCents:    req.MonthlyPriceCents,
 		AnnualDiscountPct:    req.AnnualDiscountPct,
+		PerSeatPriceCents:    req.PerSeatPriceCents,
+		IncludedSeats:        req.IncludedSeats,
+		MinSeats:             req.MinSeats,
+		MaxSeats:             req.MaxSeats,
 		UsageCreditsPerMonth: req.UsageCreditsPerMonth,
 		CreditResetPolicy:    models.CreditResetPolicy(req.CreditResetPolicy),
 		BonusCredits:         req.BonusCredits,
@@ -304,9 +337,9 @@ func (h *PlansHandler) UpdatePlan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Invalidate Stripe price cache if pricing changed
-	if req.MonthlyPriceCents != existing.MonthlyPriceCents || req.AnnualDiscountPct != existing.AnnualDiscountPct {
+	if req.MonthlyPriceCents != existing.MonthlyPriceCents || req.AnnualDiscountPct != existing.AnnualDiscountPct || req.PerSeatPriceCents != existing.PerSeatPriceCents {
 		h.db.StripeMappings().DeleteMany(r.Context(), bson.M{
-			"entityType": bson.M{"$in": []string{"plan_month", "plan_year"}},
+			"entityType": bson.M{"$in": []string{"plan_month", "plan_year", "plan_base_month", "plan_base_year", "plan_seat_month", "plan_seat_year"}},
 			"entityId":   planID,
 		})
 	}
@@ -314,8 +347,13 @@ func (h *PlansHandler) UpdatePlan(w http.ResponseWriter, r *http.Request) {
 	update := bson.M{"$set": bson.M{
 		"name":                 req.Name,
 		"description":          strings.TrimSpace(req.Description),
+		"pricingModel":         req.PricingModel,
 		"monthlyPriceCents":    req.MonthlyPriceCents,
 		"annualDiscountPct":    req.AnnualDiscountPct,
+		"perSeatPriceCents":    req.PerSeatPriceCents,
+		"includedSeats":        req.IncludedSeats,
+		"minSeats":             req.MinSeats,
+		"maxSeats":             req.MaxSeats,
 		"usageCreditsPerMonth": req.UsageCreditsPerMonth,
 		"creditResetPolicy":    req.CreditResetPolicy,
 		"bonusCredits":         req.BonusCredits,
@@ -341,8 +379,13 @@ func (h *PlansHandler) UpdatePlan(w http.ResponseWriter, r *http.Request) {
 		"id":                   updated.ID,
 		"name":                 updated.Name,
 		"description":          updated.Description,
+		"pricingModel":         updated.PricingModel,
 		"monthlyPriceCents":    updated.MonthlyPriceCents,
 		"annualDiscountPct":    updated.AnnualDiscountPct,
+		"perSeatPriceCents":    updated.PerSeatPriceCents,
+		"includedSeats":        updated.IncludedSeats,
+		"minSeats":             updated.MinSeats,
+		"maxSeats":             updated.MaxSeats,
 		"usageCreditsPerMonth": updated.UsageCreditsPerMonth,
 		"creditResetPolicy":    updated.CreditResetPolicy,
 		"bonusCredits":         updated.BonusCredits,

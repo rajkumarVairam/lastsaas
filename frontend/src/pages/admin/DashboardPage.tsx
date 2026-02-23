@@ -111,7 +111,7 @@ export default function AdminDashboardPage() {
               {unconfiguredIntegrations.length} integration{unconfiguredIntegrations.length > 1 ? 's' : ''} not configured
             </p>
             <p className="text-xs text-dark-400 mt-0.5">
-              {unconfiguredIntegrations.map(n => ({ stripe: 'Stripe', resend: 'Resend', mongodb: 'MongoDB', google_oauth: 'Google Login' }[n] || n.charAt(0).toUpperCase() + n.slice(1))).join(', ')} {unconfiguredIntegrations.length > 1 ? 'need' : 'needs'} setup. Click to view details.
+              {unconfiguredIntegrations.map(n => ({ stripe: 'Stripe', resend: 'Resend', mongodb: 'MongoDB', google_oauth: 'Google Login', github_oauth: 'GitHub Login', microsoft_oauth: 'Microsoft Login', webauthn: 'Passkeys', saml_sso: 'SSO/SAML' }[n] || n.charAt(0).toUpperCase() + n.slice(1))).join(', ')} {unconfiguredIntegrations.length > 1 ? 'need' : 'needs'} setup. Click to view details.
             </p>
           </div>
         </Link>

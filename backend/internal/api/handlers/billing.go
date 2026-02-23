@@ -86,22 +86,130 @@ func (h *BillingHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Free plan or billing waived: assign directly
-		if plan.MonthlyPriceCents == 0 || tenant.BillingWaived {
+		if (plan.MonthlyPriceCents == 0 && plan.PerSeatPriceCents == 0) || tenant.BillingWaived {
+			setFields := bson.M{
+				"planId":              planID,
+				"billingStatus":       models.BillingStatusActive,
+				"billingInterval":     req.BillingInterval,
+				"subscriptionCredits": plan.UsageCreditsPerMonth,
+				"updatedAt":           time.Now(),
+			}
+			if plan.PricingModel == models.PricingModelPerSeat {
+				memberCount, _ := h.db.TenantMemberships().CountDocuments(ctx, bson.M{"tenantId": tenant.ID})
+				seats := int(memberCount)
+				if seats < plan.MinSeats {
+					seats = plan.MinSeats
+				}
+				if seats < 1 {
+					seats = 1
+				}
+				setFields["seatQuantity"] = seats
+			}
 			h.db.Tenants().UpdateOne(ctx, bson.M{"_id": tenant.ID}, bson.M{
-				"$set": bson.M{
-					"planId":              planID,
-					"billingStatus":       models.BillingStatusActive,
-					"billingInterval":     req.BillingInterval,
-					"subscriptionCredits": plan.UsageCreditsPerMonth,
-					"updatedAt":           time.Now(),
-				},
+				"$set": setFields,
 				"$inc": bson.M{"purchasedCredits": plan.BonusCredits},
 			})
 			respondWithJSON(w, http.StatusOK, map[string]interface{}{"waived": true})
 			return
 		}
 
-		// Calculate price
+		// Per-seat billing
+		if plan.PricingModel == models.PricingModelPerSeat {
+			memberCount, _ := h.db.TenantMemberships().CountDocuments(ctx, bson.M{"tenantId": tenant.ID})
+			seats := int(memberCount)
+			if seats < plan.MinSeats {
+				seats = plan.MinSeats
+			}
+			if seats < 1 {
+				seats = 1
+			}
+			if plan.MaxSeats > 0 && seats > plan.MaxSeats {
+				respondWithError(w, http.StatusForbidden, fmt.Sprintf("Maximum seats (%d) exceeded", plan.MaxSeats))
+				return
+			}
+
+			if h.stripe == nil {
+				respondWithError(w, http.StatusServiceUnavailable, "Billing not configured")
+				return
+			}
+
+			customerID, err := h.stripe.GetOrCreateCustomer(ctx, tenant, user.Email)
+			if err != nil {
+				log.Printf("Billing: failed to get/create customer: %v", err)
+				respondWithError(w, http.StatusInternalServerError, "Failed to create billing session")
+				return
+			}
+
+			checkoutReq := stripeservice.CheckoutRequest{
+				CustomerID:      customerID,
+				PlanID:          &planID,
+				PlanName:        plan.Name,
+				BillingInterval: req.BillingInterval,
+				TenantID:        tenant.ID.Hex(),
+				UserID:          user.ID.Hex(),
+				SeatQuantity:    int64(seats),
+			}
+
+			if plan.MonthlyPriceCents > 0 && plan.IncludedSeats > 0 {
+				// Base + per-seat: two line items
+				baseAmount := plan.MonthlyPriceCents
+				perSeatAmount := plan.PerSeatPriceCents
+				if req.BillingInterval == "year" {
+					baseAnnual := plan.MonthlyPriceCents * 12
+					baseDiscount := int64(math.Round(float64(baseAnnual) * float64(plan.AnnualDiscountPct) / 100))
+					baseAmount = baseAnnual - baseDiscount
+					seatAnnual := plan.PerSeatPriceCents * 12
+					seatDiscount := int64(math.Round(float64(seatAnnual) * float64(plan.AnnualDiscountPct) / 100))
+					perSeatAmount = seatAnnual - seatDiscount
+				}
+
+				basePriceID, err := h.stripe.GetOrCreatePrice(ctx, "plan_base_"+req.BillingInterval, planID, plan.Name+" (Base)", baseAmount, req.BillingInterval)
+				if err != nil {
+					log.Printf("Billing: failed to create base price: %v", err)
+					respondWithError(w, http.StatusInternalServerError, "Failed to create billing session")
+					return
+				}
+
+				customItems := []stripeservice.CheckoutLineItem{
+					{PriceID: basePriceID, Quantity: 1},
+				}
+
+				additionalSeats := int64(seats) - int64(plan.IncludedSeats)
+				if additionalSeats > 0 {
+					seatPriceID, err := h.stripe.GetOrCreatePrice(ctx, "plan_seat_"+req.BillingInterval, planID, plan.Name+" (Per Seat)", perSeatAmount, req.BillingInterval)
+					if err != nil {
+						log.Printf("Billing: failed to create seat price: %v", err)
+						respondWithError(w, http.StatusInternalServerError, "Failed to create billing session")
+						return
+					}
+					customItems = append(customItems, stripeservice.CheckoutLineItem{PriceID: seatPriceID, Quantity: additionalSeats})
+				}
+
+				checkoutReq.CustomLineItems = customItems
+			} else {
+				// Pure per-seat: single line item
+				perSeatAmount := plan.PerSeatPriceCents
+				if req.BillingInterval == "year" {
+					annual := plan.PerSeatPriceCents * 12
+					discount := int64(math.Round(float64(annual) * float64(plan.AnnualDiscountPct) / 100))
+					perSeatAmount = annual - discount
+				}
+				checkoutReq.AmountCents = perSeatAmount
+				checkoutReq.Quantity = int64(seats)
+			}
+
+			url, err := h.stripe.CreateCheckoutSession(ctx, checkoutReq)
+			if err != nil {
+				log.Printf("Billing: failed to create checkout session: %v", err)
+				respondWithError(w, http.StatusInternalServerError, "Failed to create billing session")
+				return
+			}
+
+			respondWithJSON(w, http.StatusOK, map[string]string{"checkoutUrl": url})
+			return
+		}
+
+		// Calculate price (flat-rate plans)
 		amountCents := plan.MonthlyPriceCents
 		if req.BillingInterval == "year" {
 			annual := plan.MonthlyPriceCents * 12

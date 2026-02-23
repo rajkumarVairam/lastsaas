@@ -5,9 +5,47 @@ export interface User {
   emailVerified: boolean;
   isActive: boolean;
   authMethods: string[];
+  totpEnabled: boolean;
+  themePreference: 'dark' | 'light' | 'system';
+  onboardingCompletedAt?: string;
   createdAt: string;
   updatedAt: string;
   lastLoginAt?: string;
+}
+
+export interface MFARequiredResponse {
+  mfaRequired: true;
+  mfaToken: string;
+}
+
+export interface AuthProviders {
+  password: boolean;
+  google: boolean;
+  github: boolean;
+  microsoft: boolean;
+  magicLink: boolean;
+  passkeys: boolean;
+}
+
+export interface ActiveSession {
+  id: string;
+  ipAddress: string;
+  userAgent: string;
+  deviceInfo: string;
+  lastActiveAt: string;
+  createdAt: string;
+  isCurrent: boolean;
+}
+
+export interface ActivityLogEntry {
+  id: string;
+  severity: LogSeverity;
+  message: string;
+  userId?: string;
+  tenantId?: string;
+  action?: string;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
 }
 
 export interface MembershipInfo {
@@ -43,6 +81,7 @@ export interface TenantDetail {
   billingWaived: boolean;
   subscriptionCredits: number;
   purchasedCredits: number;
+  seatQuantity: number;
   stripeCustomerId?: string;
   billingStatus: BillingStatus;
   stripeSubscriptionId?: string;
@@ -64,6 +103,7 @@ export interface TenantListItem {
   billingWaived: boolean;
   subscriptionCredits: number;
   purchasedCredits: number;
+  seatQuantity: number;
   billingStatus: BillingStatus;
   billingInterval?: string;
   currentPeriodEnd?: string;
@@ -174,6 +214,8 @@ export interface EntitlementValue {
   description: string;
 }
 
+export type PricingModel = 'flat' | 'per_seat';
+
 export interface Plan {
   id: string;
   name: string;
@@ -184,6 +226,11 @@ export interface Plan {
   creditResetPolicy: CreditResetPolicy;
   bonusCredits: number;
   userLimit: number;
+  pricingModel: PricingModel;
+  perSeatPriceCents: number;
+  includedSeats: number;
+  minSeats: number;
+  maxSeats: number;
   entitlements: Record<string, EntitlementValue>;
   isSystem: boolean;
   isArchived: boolean;
@@ -204,6 +251,7 @@ export interface PublicPlansResponse {
   billingWaived: boolean;
   tenantSubscriptionCredits: number;
   tenantPurchasedCredits: number;
+  seatQuantity: number;
   billingStatus: BillingStatus;
   billingInterval?: string;
   currentPeriodEnd?: string;
@@ -465,4 +513,28 @@ export interface CustomPage {
   sortOrder: number;
   createdAt: string;
   updatedAt: string;
+}
+
+// --- Passkeys / WebAuthn ---
+
+export interface PasskeyCredential {
+  id: string;
+  name: string;
+  createdAt: string;
+  lastUsedAt?: string;
+}
+
+// --- Tenant Settings ---
+
+export interface TenantSettings {
+  name: string;
+  slug: string;
+}
+
+// --- Impersonation ---
+
+export interface ImpersonationResponse {
+  accessToken: string;
+  user: User;
+  memberships: MembershipInfo[];
 }

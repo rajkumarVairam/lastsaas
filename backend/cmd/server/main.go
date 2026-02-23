@@ -132,6 +132,30 @@ func main() {
 		log.Println("Google OAuth not configured (missing credentials)")
 	}
 
+	var githubOAuth *auth.GitHubOAuthService
+	if cfg.OAuth.GitHubClientID != "" && cfg.OAuth.GitHubClientSecret != "" {
+		githubOAuth = auth.NewGitHubOAuthService(
+			cfg.OAuth.GitHubClientID,
+			cfg.OAuth.GitHubClientSecret,
+			cfg.OAuth.GitHubRedirectURL,
+		)
+		log.Println("GitHub OAuth configured")
+	} else {
+		log.Println("GitHub OAuth not configured (missing credentials)")
+	}
+
+	var microsoftOAuth *auth.MicrosoftOAuthService
+	if cfg.OAuth.MicrosoftClientID != "" && cfg.OAuth.MicrosoftClientSecret != "" {
+		microsoftOAuth = auth.NewMicrosoftOAuthService(
+			cfg.OAuth.MicrosoftClientID,
+			cfg.OAuth.MicrosoftClientSecret,
+			cfg.OAuth.MicrosoftRedirectURL,
+		)
+		log.Println("Microsoft OAuth configured")
+	} else {
+		log.Println("Microsoft OAuth not configured (missing credentials)")
+	}
+
 	var emailService *email.ResendService
 	if cfg.Email.ResendAPIKey != "" {
 		emailService = email.NewResendService(
@@ -192,6 +216,26 @@ func main() {
 	} else {
 		healthService.RegisterIntegration("google_oauth", nil)
 	}
+	if cfg.OAuth.GitHubClientID != "" && cfg.OAuth.GitHubClientSecret != "" {
+		healthService.RegisterIntegration("github_oauth", health.NewGitHubOAuthChecker())
+	} else {
+		healthService.RegisterIntegration("github_oauth", nil)
+	}
+	if cfg.OAuth.MicrosoftClientID != "" && cfg.OAuth.MicrosoftClientSecret != "" {
+		healthService.RegisterIntegration("microsoft_oauth", health.NewMicrosoftOAuthChecker())
+	} else {
+		healthService.RegisterIntegration("microsoft_oauth", nil)
+	}
+	if cfgStore.Get("auth.passkeys.enabled") == "true" {
+		healthService.RegisterIntegration("webauthn", health.NewWebAuthnChecker())
+	} else {
+		healthService.RegisterIntegration("webauthn", nil)
+	}
+	if cfgStore.Get("auth.sso.enabled") == "true" {
+		healthService.RegisterIntegration("saml_sso", health.NewSAMLChecker())
+	} else {
+		healthService.RegisterIntegration("saml_sso", nil)
+	}
 
 	healthService.Start()
 	defer healthService.Stop()
@@ -199,9 +243,20 @@ func main() {
 	// Initialize handlers
 	bootstrapHandler := handlers.NewBootstrapHandler(database)
 	authHandler := handlers.NewAuthHandler(database, jwtService, passwordService, googleOAuth, emailService, emitter, cfg.Frontend.URL, sysLogger)
+	authHandler.SetGetConfig(cfgStore.Get)
+	if githubOAuth != nil {
+		authHandler.SetGitHubOAuth(githubOAuth)
+	}
+	if microsoftOAuth != nil {
+		authHandler.SetMicrosoftOAuth(microsoftOAuth)
+	}
 	tenantHandler := handlers.NewTenantHandler(database, emailService, emitter, sysLogger)
+	if stripeSvc != nil {
+		tenantHandler.SetStripe(stripeSvc)
+	}
 	adminHandler := handlers.NewAdminHandler(database, emitter, sysLogger)
 	adminHandler.SetHealthService(healthService, cfgStore.Get)
+	adminHandler.SetJWTService(jwtService)
 	messageHandler := handlers.NewMessageHandler(database)
 	logHandler := handlers.NewLogHandler(database)
 	configHandler := handlers.NewConfigHandler(database, cfgStore, sysLogger)
@@ -288,6 +343,24 @@ func main() {
 
 	guarded.HandleFunc("/auth/reset-password", authHandler.ResetPassword).Methods("POST")
 
+	// Auth providers discovery (public)
+	guarded.HandleFunc("/auth/providers", authHandler.GetProviders).Methods("GET")
+
+	// MFA challenge (public — uses special mfa token)
+	guarded.HandleFunc("/auth/mfa/challenge", rateLimiter.RateLimitHandler(
+		middleware.MFAChallengeLimit,
+		func(r *http.Request) string { return middleware.GetClientIP(r) },
+		authHandler.MFAChallenge,
+	)).Methods("POST")
+
+	// Magic link (public)
+	guarded.HandleFunc("/auth/magic-link", rateLimiter.RateLimitHandler(
+		middleware.MagicLinkLimit,
+		func(r *http.Request) string { return middleware.GetClientIP(r) },
+		authHandler.MagicLinkRequest,
+	)).Methods("POST")
+	guarded.HandleFunc("/auth/magic-link/verify", authHandler.MagicLinkVerify).Methods("POST")
+
 	// Google OAuth routes
 	if googleOAuth != nil {
 		guarded.HandleFunc("/auth/google", rateLimiter.RateLimitHandler(
@@ -298,6 +371,26 @@ func main() {
 		guarded.HandleFunc("/auth/google/callback", authHandler.GoogleOAuthCallback).Methods("GET")
 	}
 
+	// GitHub OAuth routes
+	if githubOAuth != nil {
+		guarded.HandleFunc("/auth/github", rateLimiter.RateLimitHandler(
+			middleware.OAuthInitLimit,
+			func(r *http.Request) string { return middleware.GetClientIP(r) },
+			authHandler.GitHubOAuth,
+		)).Methods("GET")
+		guarded.HandleFunc("/auth/github/callback", authHandler.GitHubOAuthCallback).Methods("GET")
+	}
+
+	// Microsoft OAuth routes
+	if microsoftOAuth != nil {
+		guarded.HandleFunc("/auth/microsoft", rateLimiter.RateLimitHandler(
+			middleware.OAuthInitLimit,
+			func(r *http.Request) string { return middleware.GetClientIP(r) },
+			authHandler.MicrosoftOAuth,
+		)).Methods("GET")
+		guarded.HandleFunc("/auth/microsoft/callback", authHandler.MicrosoftOAuthCallback).Methods("GET")
+	}
+
 	// Protected auth routes (require JWT)
 	protectedAuth := guarded.PathPrefix("/auth").Subrouter()
 	protectedAuth.Use(authMiddleware.RequireAuth)
@@ -305,6 +398,15 @@ func main() {
 	protectedAuth.HandleFunc("/logout", authHandler.Logout).Methods("POST")
 	protectedAuth.HandleFunc("/change-password", authHandler.ChangePassword).Methods("POST")
 	protectedAuth.HandleFunc("/accept-invitation", authHandler.AcceptInvitation).Methods("POST")
+	protectedAuth.HandleFunc("/mfa/setup", authHandler.MFASetup).Methods("POST")
+	protectedAuth.HandleFunc("/mfa/verify-setup", authHandler.MFAVerifySetup).Methods("POST")
+	protectedAuth.HandleFunc("/mfa/disable", authHandler.MFADisable).Methods("POST")
+	protectedAuth.HandleFunc("/mfa/regenerate-codes", authHandler.MFARegenerateRecoveryCodes).Methods("POST")
+	protectedAuth.HandleFunc("/sessions", authHandler.ListSessions).Methods("GET")
+	protectedAuth.HandleFunc("/sessions/{id}", authHandler.RevokeSession).Methods("DELETE")
+	protectedAuth.HandleFunc("/sessions", authHandler.RevokeAllSessions).Methods("DELETE")
+	protectedAuth.HandleFunc("/preferences", authHandler.UpdatePreferences).Methods("PATCH")
+	protectedAuth.HandleFunc("/complete-onboarding", authHandler.CompleteOnboarding).Methods("POST")
 
 	// Tenant-scoped routes (require JWT + tenant context)
 	tenantAPI := guarded.PathPrefix("/tenant").Subrouter()
@@ -312,6 +414,12 @@ func main() {
 	tenantAPI.Use(tenantMiddleware.RequireTenant)
 
 	tenantAPI.HandleFunc("/members", tenantHandler.ListMembers).Methods("GET")
+	tenantAPI.HandleFunc("/activity", tenantHandler.GetActivity).Methods("GET")
+
+	// Tenant settings (owner only)
+	tenantSettingsRouter := tenantAPI.PathPrefix("/settings").Subrouter()
+	tenantSettingsRouter.Use(middleware.RequireRole(models.RoleOwner))
+	tenantSettingsRouter.HandleFunc("", tenantHandler.UpdateTenantSettings).Methods("PATCH")
 
 	// Invite requires admin+
 	inviteRouter := tenantAPI.PathPrefix("/members/invite").Subrouter()
@@ -411,6 +519,7 @@ func main() {
 	adminOwner.HandleFunc("/users/{userId}/status", adminHandler.UpdateUserStatus).Methods("PATCH")
 	adminOwner.HandleFunc("/users/{userId}/role/{tenantId}", adminHandler.UpdateUserRole).Methods("PATCH")
 	adminOwner.HandleFunc("/users/{userId}/preflight-delete", adminHandler.PreflightDeleteUser).Methods("GET")
+	adminOwner.HandleFunc("/users/{userId}/impersonate", adminHandler.ImpersonateUser).Methods("POST")
 	adminOwner.HandleFunc("/users/{userId}", adminHandler.DeleteUser).Methods("DELETE")
 	adminOwner.HandleFunc("/plans", plansHandler.CreatePlan).Methods("POST")
 	adminOwner.HandleFunc("/plans/{planId}", plansHandler.UpdatePlan).Methods("PUT")

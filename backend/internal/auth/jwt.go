@@ -20,9 +20,11 @@ type JWTService struct {
 }
 
 type AccessTokenClaims struct {
-	UserID      string `json:"userId"`
-	Email       string `json:"email"`
-	DisplayName string `json:"displayName"`
+	UserID         string `json:"userId"`
+	Email          string `json:"email"`
+	DisplayName    string `json:"displayName"`
+	MFAPending     bool   `json:"mfaPending,omitempty"`
+	ImpersonatedBy string `json:"impersonatedBy,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -55,6 +57,37 @@ func (s *JWTService) GenerateAccessToken(userID, email, displayName string) (str
 		DisplayName: displayName,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(s.accessTTL)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			NotBefore: jwt.NewNumericDate(time.Now()),
+		},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(s.accessSecret)
+}
+
+func (s *JWTService) GenerateMFAToken(userID, email string) (string, error) {
+	claims := AccessTokenClaims{
+		UserID:     userID,
+		Email:      email,
+		MFAPending: true,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(5 * time.Minute)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			NotBefore: jwt.NewNumericDate(time.Now()),
+		},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(s.accessSecret)
+}
+
+func (s *JWTService) GenerateImpersonationToken(userID, email, displayName, impersonatedBy string) (string, error) {
+	claims := AccessTokenClaims{
+		UserID:         userID,
+		Email:          email,
+		DisplayName:    displayName,
+		ImpersonatedBy: impersonatedBy,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(1 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			NotBefore: jwt.NewNumericDate(time.Now()),
 		},

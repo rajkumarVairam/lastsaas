@@ -13,10 +13,12 @@ import (
 	"lastsaas/internal/events"
 	"lastsaas/internal/middleware"
 	"lastsaas/internal/models"
+	stripeservice "lastsaas/internal/stripe"
 	"lastsaas/internal/syslog"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/gorilla/mux"
 )
@@ -26,7 +28,10 @@ type TenantHandler struct {
 	emailService *email.ResendService
 	events       events.Emitter
 	syslog       *syslog.Logger
+	stripe       *stripeservice.Service
 }
+
+func (h *TenantHandler) SetStripe(s *stripeservice.Service) { h.stripe = s }
 
 func NewTenantHandler(database *db.MongoDB, emailService *email.ResendService, emitter events.Emitter, sysLogger *syslog.Logger) *TenantHandler {
 	return &TenantHandler{
@@ -209,6 +214,20 @@ func (h *TenantHandler) InviteMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Auto-adjust seat quantity for per-seat plans
+	if h.stripe != nil && tenant.StripeSubscriptionID != "" && tenantPlan.PricingModel == models.PricingModelPerSeat {
+		memberCount, _ := h.db.TenantMemberships().CountDocuments(r.Context(), bson.M{"tenantId": tenant.ID})
+		newSeats := int(memberCount) + 1 // +1 for incoming member
+		if newSeats < tenantPlan.MinSeats {
+			newSeats = tenantPlan.MinSeats
+		}
+		if err := h.stripe.UpdateSubscriptionQuantity(r.Context(), tenant.StripeSubscriptionID, int64(newSeats)); err != nil {
+			log.Printf("Failed to update seat quantity for tenant %s: %v", tenant.ID.Hex(), err)
+		} else {
+			h.db.Tenants().UpdateOne(r.Context(), bson.M{"_id": tenant.ID}, bson.M{"$set": bson.M{"seatQuantity": newSeats, "updatedAt": time.Now()}})
+		}
+	}
+
 	// Send invitation email
 	go func() {
 		if h.emailService != nil {
@@ -281,6 +300,26 @@ func (h *TenantHandler) RemoveMember(w http.ResponseWriter, r *http.Request) {
 	if _, err := h.db.TenantMemberships().DeleteOne(r.Context(), bson.M{"_id": targetMembership.ID}); err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to remove member")
 		return
+	}
+
+	// Auto-adjust seat quantity for per-seat plans
+	if h.stripe != nil && tenant.StripeSubscriptionID != "" && tenant.PlanID != nil {
+		var plan models.Plan
+		if h.db.Plans().FindOne(r.Context(), bson.M{"_id": *tenant.PlanID}).Decode(&plan) == nil && plan.PricingModel == models.PricingModelPerSeat {
+			memberCount, _ := h.db.TenantMemberships().CountDocuments(r.Context(), bson.M{"tenantId": tenant.ID})
+			newSeats := int(memberCount)
+			if newSeats < plan.MinSeats {
+				newSeats = plan.MinSeats
+			}
+			if newSeats < 1 {
+				newSeats = 1
+			}
+			if err := h.stripe.UpdateSubscriptionQuantity(r.Context(), tenant.StripeSubscriptionID, int64(newSeats)); err != nil {
+				log.Printf("Failed to update seat quantity for tenant %s: %v", tenant.ID.Hex(), err)
+			} else {
+				h.db.Tenants().UpdateOne(r.Context(), bson.M{"_id": tenant.ID}, bson.M{"$set": bson.M{"seatQuantity": newSeats, "updatedAt": time.Now()}})
+			}
+		}
 	}
 
 	h.syslog.High(r.Context(), fmt.Sprintf("Member removed: user %s from tenant %s (%s)", targetUserID.Hex(), tenant.Name, tenant.ID.Hex()))
@@ -429,4 +468,89 @@ func (h *TenantHandler) TransferOwnership(w http.ResponseWriter, r *http.Request
 	})
 
 	respondWithJSON(w, http.StatusOK, map[string]string{"message": "Ownership transferred"})
+}
+
+// --- Tenant Activity Log ---
+
+func (h *TenantHandler) GetActivity(w http.ResponseWriter, r *http.Request) {
+	tenant, ok := middleware.GetTenantFromContext(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusBadRequest, "Tenant context missing")
+		return
+	}
+
+	page := 1
+	limit := 50
+	if p := r.URL.Query().Get("page"); p != "" {
+		if n, err := parseInt(p); err == nil && n > 0 {
+			page = n
+		}
+	}
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if n, err := parseInt(l); err == nil && n > 0 && n <= 100 {
+			limit = n
+		}
+	}
+
+	filter := bson.M{"tenantId": tenant.ID}
+	if action := r.URL.Query().Get("action"); action != "" {
+		filter["action"] = bson.M{"$regex": action, "$options": "i"}
+	}
+
+	skip := int64((page - 1) * limit)
+	opts := (&options.FindOptions{}).SetSort(bson.D{{Key: "createdAt", Value: -1}}).SetSkip(skip).SetLimit(int64(limit))
+
+	cursor, err := h.db.SystemLogs().Find(r.Context(), filter, opts)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to fetch activity")
+		return
+	}
+	defer cursor.Close(r.Context())
+
+	var logs []models.SystemLog
+	if err := cursor.All(r.Context(), &logs); err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to decode activity")
+		return
+	}
+
+	total, _ := h.db.SystemLogs().CountDocuments(r.Context(), filter)
+
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"activity": logs,
+		"total":    total,
+		"page":     page,
+		"limit":    limit,
+	})
+}
+
+// --- Tenant Settings Update ---
+
+func (h *TenantHandler) UpdateTenantSettings(w http.ResponseWriter, r *http.Request) {
+	tenant, ok := middleware.GetTenantFromContext(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusBadRequest, "Tenant context missing")
+		return
+	}
+
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	updates := bson.M{"updatedAt": time.Now()}
+	if name := strings.TrimSpace(req.Name); name != "" {
+		updates["name"] = name
+	}
+
+	h.db.Tenants().UpdateOne(r.Context(), bson.M{"_id": tenant.ID}, bson.M{"$set": updates})
+	respondWithJSON(w, http.StatusOK, map[string]string{"message": "Settings updated"})
+}
+
+func parseInt(s string) (int, error) {
+	var n int
+	_, err := fmt.Sscanf(s, "%d", &n)
+	return n, err
 }

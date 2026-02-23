@@ -35,6 +35,8 @@ var (
 	EmailVerificationLimit  = RateLimitConfig{MaxRequests: 10, Window: time.Hour}
 	TokenRefreshLimit       = RateLimitConfig{MaxRequests: 30, Window: time.Minute}
 	InvitationLimit         = RateLimitConfig{MaxRequests: 20, Window: time.Hour}
+	MFAChallengeLimit       = RateLimitConfig{MaxRequests: 5, Window: 5 * time.Minute}
+	MagicLinkLimit          = RateLimitConfig{MaxRequests: 5, Window: 15 * time.Minute}
 )
 
 func NewRateLimiter() *RateLimiter {

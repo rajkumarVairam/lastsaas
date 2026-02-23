@@ -27,12 +27,24 @@ type EntitlementValue struct {
 	Description  string          `json:"description" bson:"description"`
 }
 
+type PricingModel string
+
+const (
+	PricingModelFlat    PricingModel = "flat"
+	PricingModelPerSeat PricingModel = "per_seat"
+)
+
 type Plan struct {
 	ID                   primitive.ObjectID          `json:"id" bson:"_id,omitempty"`
 	Name                 string                      `json:"name" bson:"name"`
 	Description          string                      `json:"description" bson:"description"`
+	PricingModel         PricingModel                `json:"pricingModel" bson:"pricingModel"`
 	MonthlyPriceCents    int64                       `json:"monthlyPriceCents" bson:"monthlyPriceCents"`
 	AnnualDiscountPct    int                         `json:"annualDiscountPct" bson:"annualDiscountPct"`
+	PerSeatPriceCents    int64                       `json:"perSeatPriceCents" bson:"perSeatPriceCents"`
+	IncludedSeats        int                         `json:"includedSeats" bson:"includedSeats"`
+	MinSeats             int                         `json:"minSeats" bson:"minSeats"`
+	MaxSeats             int                         `json:"maxSeats" bson:"maxSeats"`
 	UsageCreditsPerMonth int64                       `json:"usageCreditsPerMonth" bson:"usageCreditsPerMonth"`
 	CreditResetPolicy    CreditResetPolicy           `json:"creditResetPolicy" bson:"creditResetPolicy"`
 	BonusCredits         int64                       `json:"bonusCredits" bson:"bonusCredits"`

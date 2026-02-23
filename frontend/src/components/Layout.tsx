@@ -1,12 +1,14 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Settings, LogOut, Shield, ChevronDown, Bell, CreditCard, Zap,
-  FileText, Image, Globe, Star, Heart, BookOpen, MessageCircle, HelpCircle,
+  FileText, Image, Globe, Star, Heart, BookOpen, MessageCircle, HelpCircle, Sun, Moon,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTenant } from '../contexts/TenantContext';
 import { useBranding } from '../contexts/BrandingContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { messagesApi, plansApi, bundlesApi } from '../api/client';
+import ImpersonationBanner from './ImpersonationBanner';
 import { useState, useRef, useEffect } from 'react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -20,6 +22,7 @@ export default function Layout() {
   const { user, isAuthenticated, logout, memberships } = useAuth();
   const { activeTenant, setActiveTenant } = useTenant();
   const { branding } = useBranding();
+  const { resolvedTheme, setTheme } = useTheme();
   const [showTenantMenu, setShowTenantMenu] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showCredits, setShowCredits] = useState(false);
@@ -93,10 +96,13 @@ export default function Layout() {
   const logoMode = branding.logoMode || 'text';
   const logoUrl = branding.logoUrl;
 
+  const isImpersonating = localStorage.getItem('lastsaas_impersonating') === 'true';
+
   return (
     <div className="min-h-screen bg-dark-950">
+      <ImpersonationBanner />
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-dark-900/80 backdrop-blur-xl border-b border-dark-800">
+      <header className={`sticky ${isImpersonating ? 'top-10' : 'top-0'} z-40 bg-dark-900/80 backdrop-blur-xl border-b border-dark-800`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Logo + Nav */}
@@ -197,6 +203,15 @@ export default function Layout() {
                     <span className="font-medium">{tenantCredits.toLocaleString()}</span>
                   </button>
                 )}
+
+                {/* Theme toggle */}
+                <button
+                  onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+                  className="text-dark-400 hover:text-white transition-colors"
+                  title={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} mode`}
+                >
+                  {resolvedTheme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                </button>
 
                 {/* Messages */}
                 <Link

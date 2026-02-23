@@ -189,5 +189,58 @@ func NewGoogleOAuthChecker() IntegrationChecker {
 	}
 }
 
+// NewGitHubOAuthChecker returns a checker that verifies the GitHub API is reachable.
+func NewGitHubOAuthChecker() IntegrationChecker {
+	return func(ctx context.Context) error {
+		req, err := http.NewRequestWithContext(ctx, "GET", "https://api.github.com", nil)
+		if err != nil {
+			return err
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode >= 500 {
+			return fmt.Errorf("github API returned status %d", resp.StatusCode)
+		}
+		return nil
+	}
+}
+
+// NewMicrosoftOAuthChecker returns a checker that verifies Microsoft's OpenID discovery endpoint is reachable.
+func NewMicrosoftOAuthChecker() IntegrationChecker {
+	return func(ctx context.Context) error {
+		req, err := http.NewRequestWithContext(ctx, "GET", "https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration", nil)
+		if err != nil {
+			return err
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode >= 400 {
+			return fmt.Errorf("microsoft openid discovery returned status %d", resp.StatusCode)
+		}
+		return nil
+	}
+}
+
+// NewWebAuthnChecker returns a checker that simply confirms the WebAuthn feature is active.
+// There is no external service to ping; the library is embedded.
+func NewWebAuthnChecker() IntegrationChecker {
+	return func(ctx context.Context) error {
+		return nil
+	}
+}
+
+// NewSAMLChecker returns a checker that confirms the SAML feature is active.
+func NewSAMLChecker() IntegrationChecker {
+	return func(ctx context.Context) error {
+		return nil
+	}
+}
+
 // Ensure mutex fields are initialized (called from init or New doesn't need explicit init for sync.RWMutex)
 var _ sync.RWMutex

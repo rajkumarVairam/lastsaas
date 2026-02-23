@@ -20,8 +20,9 @@ import (
 type contextKey string
 
 const (
-	UserContextKey   contextKey = "user"
-	APIKeyContextKey contextKey = "apikey"
+	UserContextKey           contextKey = "user"
+	APIKeyContextKey         contextKey = "apikey"
+	ImpersonatedByContextKey contextKey = "impersonatedBy"
 )
 
 type AuthMiddleware struct {
@@ -98,6 +99,9 @@ func (m *AuthMiddleware) authenticateJWT(w http.ResponseWriter, r *http.Request,
 	}
 
 	ctx := context.WithValue(r.Context(), UserContextKey, &user)
+	if claims.ImpersonatedBy != "" {
+		ctx = context.WithValue(ctx, ImpersonatedByContextKey, claims.ImpersonatedBy)
+	}
 	next.ServeHTTP(w, r.WithContext(ctx))
 }
 
@@ -173,4 +177,9 @@ func GetUserFromContext(ctx context.Context) (*models.User, bool) {
 func GetAPIKeyFromContext(ctx context.Context) (*models.APIKey, bool) {
 	key, ok := ctx.Value(APIKeyContextKey).(*models.APIKey)
 	return key, ok
+}
+
+func GetImpersonatedBy(ctx context.Context) string {
+	v, _ := ctx.Value(ImpersonatedByContextKey).(string)
+	return v
 }

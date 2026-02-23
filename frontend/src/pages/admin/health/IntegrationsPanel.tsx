@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Database, CreditCard, Mail, Plug, HelpCircle, X, ExternalLink, LogIn } from 'lucide-react';
+import { Database, CreditCard, Mail, Plug, HelpCircle, X, ExternalLink, LogIn, Github, Fingerprint, KeyRound } from 'lucide-react';
 import type { IntegrationCheck } from '../../../types';
 
 const ICONS: Record<string, typeof Database> = {
@@ -7,6 +7,10 @@ const ICONS: Record<string, typeof Database> = {
   stripe: CreditCard,
   resend: Mail,
   google_oauth: LogIn,
+  github_oauth: Github,
+  microsoft_oauth: LogIn,
+  webauthn: Fingerprint,
+  saml_sso: KeyRound,
 };
 
 const LABELS: Record<string, string> = {
@@ -14,6 +18,10 @@ const LABELS: Record<string, string> = {
   stripe: 'Stripe',
   resend: 'Resend',
   google_oauth: 'Google Login',
+  github_oauth: 'GitHub Login',
+  microsoft_oauth: 'Microsoft Login',
+  webauthn: 'Passkeys (WebAuthn)',
+  saml_sso: 'SSO / SAML',
 };
 
 const CALLS_24H_LABEL: Record<string, string> = {
@@ -77,6 +85,34 @@ function getSetupHelp(origin: string): Record<string, { title: string; steps: st
         { label: 'Google Cloud Console', url: 'https://console.cloud.google.com' },
         { label: 'OAuth Consent Screen', url: 'https://console.cloud.google.com/apis/credentials/consent' },
         { label: 'Credentials', url: 'https://console.cloud.google.com/apis/credentials' },
+      ],
+    },
+    github_oauth: {
+      title: 'GitHub Login Setup',
+      steps: [
+        'Go to GitHub Settings > Developer settings > OAuth Apps and click "New OAuth App".',
+        `Set the Homepage URL to ${origin}`,
+        `Set the Authorization callback URL to ${origin}/api/auth/github/callback`,
+        'Copy the Client ID and generate a Client Secret.',
+        `Add the following environment variables: GITHUB_CLIENT_ID=... GITHUB_CLIENT_SECRET=... GITHUB_REDIRECT_URL=${origin}/api/auth/github/callback`,
+        'Redeploy or restart the server for the changes to take effect.',
+      ],
+      links: [
+        { label: 'GitHub OAuth Apps', url: 'https://github.com/settings/developers' },
+      ],
+    },
+    microsoft_oauth: {
+      title: 'Microsoft Login Setup',
+      steps: [
+        'Go to the Azure Portal > App registrations and click "New registration".',
+        `Set the Redirect URI to ${origin}/api/auth/microsoft/callback (Web platform).`,
+        'Under "Certificates & secrets", create a new client secret and copy its value.',
+        'Copy the Application (client) ID from the Overview page.',
+        `Add the following environment variables: MICROSOFT_CLIENT_ID=... MICROSOFT_CLIENT_SECRET=... MICROSOFT_REDIRECT_URL=${origin}/api/auth/microsoft/callback`,
+        'Redeploy or restart the server for the changes to take effect.',
+      ],
+      links: [
+        { label: 'Azure App Registrations', url: 'https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade' },
       ],
     },
   };

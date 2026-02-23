@@ -58,6 +58,8 @@ func (m *MongoDB) ensureIndexes() {
 			[]mongo.IndexModel{
 				{Keys: bson.D{{Key: "email", Value: 1}}, Options: options.Index().SetUnique(true).SetSparse(true)},
 				{Keys: bson.D{{Key: "googleId", Value: 1}}, Options: options.Index().SetSparse(true)},
+				{Keys: bson.D{{Key: "githubId", Value: 1}}, Options: options.Index().SetSparse(true)},
+				{Keys: bson.D{{Key: "microsoftId", Value: 1}}, Options: options.Index().SetSparse(true)},
 				{Keys: bson.D{{Key: "displayName", Value: 1}}},
 			},
 		},
@@ -135,6 +137,7 @@ func (m *MongoDB) ensureIndexes() {
 				{Keys: bson.D{{Key: "severity", Value: 1}, {Key: "createdAt", Value: -1}}},
 				{Keys: bson.D{{Key: "message", Value: "text"}}},
 				{Keys: bson.D{{Key: "userId", Value: 1}, {Key: "createdAt", Value: -1}}},
+				{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "createdAt", Value: -1}}},
 			},
 		},
 		{
@@ -237,6 +240,25 @@ func (m *MongoDB) ensureIndexes() {
 			[]mongo.IndexModel{
 				{Keys: bson.D{{Key: "slug", Value: 1}}, Options: options.Index().SetUnique(true)},
 				{Keys: bson.D{{Key: "isPublished", Value: 1}, {Key: "sortOrder", Value: 1}}},
+			},
+		},
+		{
+			"webauthn_credentials",
+			[]mongo.IndexModel{
+				{Keys: bson.D{{Key: "userId", Value: 1}}},
+				{Keys: bson.D{{Key: "credentialId", Value: 1}}, Options: options.Index().SetUnique(true)},
+			},
+		},
+		{
+			"webauthn_sessions",
+			[]mongo.IndexModel{
+				{Keys: bson.D{{Key: "expiresAt", Value: 1}}, Options: options.Index().SetExpireAfterSeconds(0)},
+			},
+		},
+		{
+			"sso_connections",
+			[]mongo.IndexModel{
+				{Keys: bson.D{{Key: "tenantId", Value: 1}}, Options: options.Index().SetUnique(true)},
 			},
 		},
 	}
@@ -370,4 +392,16 @@ func (m *MongoDB) BrandingAssets() *mongo.Collection {
 
 func (m *MongoDB) CustomPages() *mongo.Collection {
 	return m.Database.Collection("custom_pages")
+}
+
+func (m *MongoDB) WebAuthnCredentials() *mongo.Collection {
+	return m.Database.Collection("webauthn_credentials")
+}
+
+func (m *MongoDB) WebAuthnSessions() *mongo.Collection {
+	return m.Database.Collection("webauthn_sessions")
+}
+
+func (m *MongoDB) SSOConnections() *mongo.Collection {
+	return m.Database.Collection("sso_connections")
 }

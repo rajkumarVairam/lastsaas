@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"lastsaas/internal/auth"
 	"lastsaas/internal/db"
 	"lastsaas/internal/events"
 	"lastsaas/internal/health"
@@ -24,11 +25,12 @@ import (
 )
 
 type AdminHandler struct {
-	db        *db.MongoDB
-	events    events.Emitter
-	syslog    *syslog.Logger
-	health    *health.Service
-	getConfig func(string) string
+	db         *db.MongoDB
+	events     events.Emitter
+	syslog     *syslog.Logger
+	health     *health.Service
+	getConfig  func(string) string
+	jwtService *auth.JWTService
 }
 
 func NewAdminHandler(database *db.MongoDB, emitter events.Emitter, sysLogger *syslog.Logger) *AdminHandler {
@@ -42,6 +44,10 @@ func NewAdminHandler(database *db.MongoDB, emitter events.Emitter, sysLogger *sy
 func (h *AdminHandler) SetHealthService(svc *health.Service, getConfig func(string) string) {
 	h.health = svc
 	h.getConfig = getConfig
+}
+
+func (h *AdminHandler) SetJWTService(svc *auth.JWTService) {
+	h.jwtService = svc
 }
 
 var regexMetaChars = strings.NewReplacer(
@@ -1076,4 +1082,98 @@ func (h *AdminHandler) UpdateTenant(w http.ResponseWriter, r *http.Request) {
 
 	h.db.Tenants().UpdateOne(r.Context(), bson.M{"_id": tenantID}, bson.M{"$set": updates})
 	respondWithJSON(w, http.StatusOK, map[string]string{"message": "Tenant updated"})
+}
+
+func (h *AdminHandler) ImpersonateUser(w http.ResponseWriter, r *http.Request) {
+	if h.jwtService == nil {
+		respondWithError(w, http.StatusInternalServerError, "JWT service not configured")
+		return
+	}
+
+	actingUser, ok := middleware.GetUserFromContext(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "Not authenticated")
+		return
+	}
+
+	targetUserID, err := primitive.ObjectIDFromHex(mux.Vars(r)["userId"])
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid user ID")
+		return
+	}
+
+	// Cannot impersonate self
+	if targetUserID == actingUser.ID {
+		respondWithError(w, http.StatusBadRequest, "Cannot impersonate yourself")
+		return
+	}
+
+	var targetUser models.User
+	if err := h.db.Users().FindOne(r.Context(), bson.M{"_id": targetUserID}).Decode(&targetUser); err != nil {
+		respondWithError(w, http.StatusNotFound, "User not found")
+		return
+	}
+
+	// Cannot impersonate other root tenant owners
+	var rootTenant models.Tenant
+	if err := h.db.Tenants().FindOne(r.Context(), bson.M{"isRoot": true}).Decode(&rootTenant); err == nil {
+		var membership models.TenantMembership
+		err := h.db.TenantMemberships().FindOne(r.Context(), bson.M{
+			"userId":   targetUserID,
+			"tenantId": rootTenant.ID,
+			"role":     models.RoleOwner,
+		}).Decode(&membership)
+		if err == nil {
+			respondWithError(w, http.StatusForbidden, "Cannot impersonate root tenant owners")
+			return
+		}
+	}
+
+	accessToken, err := h.jwtService.GenerateImpersonationToken(
+		targetUser.ID.Hex(),
+		targetUser.Email,
+		targetUser.DisplayName,
+		actingUser.ID.Hex(),
+	)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to generate impersonation token")
+		return
+	}
+
+	h.syslog.CriticalWithUser(r.Context(),
+		fmt.Sprintf("Admin %s (%s) started impersonating user %s (%s)",
+			actingUser.Email, actingUser.ID.Hex(), targetUser.Email, targetUser.ID.Hex()),
+		actingUser.ID)
+
+	// Get target user's memberships
+	cursor, err := h.db.TenantMemberships().Find(r.Context(), bson.M{"userId": targetUserID})
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to fetch memberships")
+		return
+	}
+	defer cursor.Close(r.Context())
+
+	var memberships []models.TenantMembership
+	cursor.All(r.Context(), &memberships)
+
+	var membershipInfos []MembershipInfo
+	for _, m := range memberships {
+		var tenant models.Tenant
+		if err := h.db.Tenants().FindOne(r.Context(), bson.M{"_id": m.TenantID}).Decode(&tenant); err != nil {
+			continue
+		}
+		membershipInfos = append(membershipInfos, MembershipInfo{
+			TenantID:   tenant.ID.Hex(),
+			TenantName: tenant.Name,
+			TenantSlug: tenant.Slug,
+			Role:       m.Role,
+			IsRoot:     tenant.IsRoot,
+		})
+	}
+
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"accessToken": accessToken,
+		"user":        targetUser,
+		"memberships": membershipInfos,
+	})
 }

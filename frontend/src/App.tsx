@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './contexts/AuthContext';
 import { TenantProvider } from './contexts/TenantContext';
 import { BrandingProvider } from './contexts/BrandingContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import Layout from './components/Layout';
 import AdminLayout from './components/AdminLayout';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -18,6 +19,8 @@ import VerifyEmailPage from './pages/auth/VerifyEmailPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 import AuthCallbackPage from './pages/auth/AuthCallbackPage';
+import MFAChallengePage from './pages/auth/MFAChallengePage';
+import MagicLinkVerifyPage from './pages/auth/MagicLinkVerifyPage';
 import BootstrapPage from './pages/BootstrapPage';
 
 // App pages
@@ -29,6 +32,8 @@ import BuyCreditsPage from './pages/app/BuyCreditsPage';
 import BillingSuccessPage from './pages/app/BillingSuccessPage';
 import BillingCancelPage from './pages/app/BillingCancelPage';
 import TestEntitlementsPage from './pages/app/TestEntitlementsPage';
+import ActivityPage from './pages/app/ActivityPage';
+import OnboardingPage from './pages/app/OnboardingPage';
 
 // Admin pages
 import AdminDashboardPage from './pages/admin/DashboardPage';
@@ -104,63 +109,71 @@ export default function App() {
       <BootstrapGuard>
         <BrandingProvider>
           <AuthProvider>
-            <TenantProvider>
-              <BrowserRouter>
-                <ScrollToTop />
-                <BrandingThemeInjector />
-                <Routes>
-                  {/* Public landing page */}
-                  <Route path="/" element={<LandingPage />} />
+            <ThemeProvider>
+              <TenantProvider>
+                <BrowserRouter>
+                  <ScrollToTop />
+                  <BrandingThemeInjector />
+                  <Routes>
+                    {/* Public landing page */}
+                    <Route path="/" element={<LandingPage />} />
 
-                  {/* Public custom pages */}
-                  <Route path="/p/:slug" element={<CustomPage />} />
+                    {/* Public custom pages */}
+                    <Route path="/p/:slug" element={<CustomPage />} />
 
-                  {/* Public auth routes */}
-                  <Route path="/login" element={<LoginPage />} />
-                  <Route path="/signup" element={<SignupPage />} />
-                  <Route path="/verify-email" element={<VerifyEmailPage />} />
-                  <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-                  <Route path="/reset-password" element={<ResetPasswordPage />} />
-                  <Route path="/auth/callback" element={<AuthCallbackPage />} />
+                    {/* Public auth routes */}
+                    <Route path="/login" element={<LoginPage />} />
+                    <Route path="/signup" element={<SignupPage />} />
+                    <Route path="/verify-email" element={<VerifyEmailPage />} />
+                    <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                    <Route path="/reset-password" element={<ResetPasswordPage />} />
+                    <Route path="/auth/callback" element={<AuthCallbackPage />} />
+                    <Route path="/auth/mfa" element={<MFAChallengePage />} />
+                    <Route path="/auth/magic-link" element={<MagicLinkVerifyPage />} />
 
-                  {/* Protected app routes */}
-                  <Route element={<ProtectedRoute />}>
-                    <Route element={<Layout />}>
-                      <Route path="/dashboard" element={<DashboardPage />} />
-                      <Route path="/team" element={<TeamPage />} />
-                      <Route path="/plan" element={<PlanPage />} />
-                      <Route path="/buy-credits" element={<BuyCreditsPage />} />
-                      <Route path="/billing/success" element={<BillingSuccessPage />} />
-                      <Route path="/billing/cancel" element={<BillingCancelPage />} />
-                      <Route path="/settings" element={<SettingsPage />} />
-                      <Route path="/test-entitlements" element={<TestEntitlementsPage />} />
-                      <Route path="/messages" element={<AdminMessagesPage />} />
+                    {/* Protected app routes */}
+                    <Route element={<ProtectedRoute />}>
+                      {/* Onboarding (no layout) */}
+                      <Route path="/onboarding" element={<OnboardingPage />} />
+
+                      <Route element={<Layout />}>
+                        <Route path="/dashboard" element={<DashboardPage />} />
+                        <Route path="/team" element={<TeamPage />} />
+                        <Route path="/plan" element={<PlanPage />} />
+                        <Route path="/buy-credits" element={<BuyCreditsPage />} />
+                        <Route path="/billing/success" element={<BillingSuccessPage />} />
+                        <Route path="/billing/cancel" element={<BillingCancelPage />} />
+                        <Route path="/settings" element={<SettingsPage />} />
+                        <Route path="/activity" element={<ActivityPage />} />
+                        <Route path="/test-entitlements" element={<TestEntitlementsPage />} />
+                        <Route path="/messages" element={<AdminMessagesPage />} />
+                      </Route>
+
+                      {/* Admin routes (root tenant only, enforced by AdminLayout) */}
+                      <Route path="/last" element={<AdminLayout />}>
+                        <Route index element={<AdminDashboardPage />} />
+                        <Route path="messages" element={<AdminMessagesPage />} />
+                        <Route path="users" element={<AdminUsersPage />} />
+                        <Route path="users/:userId" element={<AdminUserProfilePage />} />
+                        <Route path="tenants" element={<AdminTenantsPage />} />
+                        <Route path="tenants/:tenantId" element={<AdminTenantProfilePage />} />
+                        <Route path="plans" element={<AdminPlansPage />} />
+                        <Route path="financial" element={<AdminFinancialPage />} />
+                        <Route path="health" element={<AdminHealthPage />} />
+                        <Route path="logs" element={<AdminLogsPage />} />
+                        <Route path="config" element={<AdminConfigPage />} />
+                        <Route path="api" element={<AdminAPIPage />} />
+                        <Route path="branding" element={<AdminBrandingPage />} />
+                        <Route path="about" element={<AdminAboutPage />} />
+                      </Route>
                     </Route>
 
-                    {/* Admin routes (root tenant only, enforced by AdminLayout) */}
-                    <Route path="/last" element={<AdminLayout />}>
-                      <Route index element={<AdminDashboardPage />} />
-                      <Route path="messages" element={<AdminMessagesPage />} />
-                      <Route path="users" element={<AdminUsersPage />} />
-                      <Route path="users/:userId" element={<AdminUserProfilePage />} />
-                      <Route path="tenants" element={<AdminTenantsPage />} />
-                      <Route path="tenants/:tenantId" element={<AdminTenantProfilePage />} />
-                      <Route path="plans" element={<AdminPlansPage />} />
-                      <Route path="financial" element={<AdminFinancialPage />} />
-                      <Route path="health" element={<AdminHealthPage />} />
-                      <Route path="logs" element={<AdminLogsPage />} />
-                      <Route path="config" element={<AdminConfigPage />} />
-                      <Route path="api" element={<AdminAPIPage />} />
-                      <Route path="branding" element={<AdminBrandingPage />} />
-                      <Route path="about" element={<AdminAboutPage />} />
-                    </Route>
-                  </Route>
-
-                  {/* Fallback */}
-                  <Route path="*" element={<Navigate to="/dashboard" replace />} />
-                </Routes>
-              </BrowserRouter>
-            </TenantProvider>
+                    {/* Fallback */}
+                    <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                  </Routes>
+                </BrowserRouter>
+              </TenantProvider>
+            </ThemeProvider>
           </AuthProvider>
         </BrandingProvider>
       </BootstrapGuard>

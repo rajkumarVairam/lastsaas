@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Settings, User, KeyRound, CheckCircle, AlertCircle, CreditCard, Receipt, Download, ExternalLink } from 'lucide-react';
+import { Settings, User, KeyRound, CheckCircle, AlertCircle, CreditCard, Receipt, Download, ExternalLink, Shield, Smartphone, Monitor, Fingerprint, Trash2, Copy } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { authApi, billingApi, plansApi } from '../../api/client';
-import type { FinancialTransaction, BillingStatus } from '../../types';
+import type { FinancialTransaction, BillingStatus, ActiveSession, PasskeyCredential } from '../../types';
 import LoadingSpinner from '../../components/LoadingSpinner';
 
 function InvoiceModal({ tx, tenantName, onClose }: { tx: FinancialTransaction; tenantName: string; onClose: () => void }) {
@@ -70,6 +70,119 @@ function InvoiceModal({ tx, tenantName, onClose }: { tx: FinancialTransaction; t
   );
 }
 
+function MFASetupModal({ onClose, onComplete }: { onClose: () => void; onComplete: () => void }) {
+  const [step, setStep] = useState<'qr' | 'verify' | 'codes'>('qr');
+  const [qrCodeUrl, setQrCodeUrl] = useState('');
+  const [secret, setSecret] = useState('');
+  const [code, setCode] = useState('');
+  const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    authApi.mfaSetup()
+      .then((data) => {
+        setQrCodeUrl(data.qrCodeUrl);
+        setSecret(data.secret);
+      })
+      .catch(() => setError('Failed to initialize MFA setup'));
+  }, []);
+
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const data = await authApi.mfaVerifySetup(code);
+      setRecoveryCodes(data.recoveryCodes);
+      setStep('codes');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setError(msg || 'Invalid code');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const copyRecoveryCodes = () => {
+    navigator.clipboard.writeText(recoveryCodes.join('\n'));
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-dark-900 border border-dark-700 rounded-2xl p-6 max-w-md mx-4 w-full" onClick={e => e.stopPropagation()}>
+        {step === 'qr' && (
+          <>
+            <h3 className="text-lg font-semibold text-white mb-4">Set Up Two-Factor Authentication</h3>
+            <p className="text-sm text-dark-400 mb-4">Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)</p>
+            {qrCodeUrl ? (
+              <div className="flex justify-center mb-4">
+                <img src={qrCodeUrl} alt="QR Code" className="w-48 h-48 rounded-lg bg-white p-2" />
+              </div>
+            ) : (
+              <div className="flex justify-center mb-4 py-8"><LoadingSpinner /></div>
+            )}
+            {secret && (
+              <div className="mb-4">
+                <p className="text-xs text-dark-400 mb-1">Or enter this key manually:</p>
+                <code className="block text-xs bg-dark-800 text-dark-300 px-3 py-2 rounded-lg font-mono break-all">{secret}</code>
+              </div>
+            )}
+            <button onClick={() => setStep('verify')} className="w-full py-2.5 px-4 bg-gradient-to-r from-primary-600 to-primary-500 text-white font-medium rounded-lg hover:from-primary-500 hover:to-primary-400 transition-all text-sm">
+              Next
+            </button>
+          </>
+        )}
+
+        {step === 'verify' && (
+          <>
+            <h3 className="text-lg font-semibold text-white mb-4">Verify Code</h3>
+            <p className="text-sm text-dark-400 mb-4">Enter the 6-digit code from your authenticator app</p>
+            {error && <div className="mb-4 bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-sm text-red-400">{error}</div>}
+            <form onSubmit={handleVerify} className="space-y-4">
+              <input
+                type="text"
+                required
+                autoFocus
+                autoComplete="one-time-code"
+                inputMode="numeric"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                className="w-full px-4 py-2.5 bg-dark-800 border border-dark-700 rounded-lg text-white text-center text-lg tracking-widest focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
+                placeholder="000000"
+                maxLength={6}
+              />
+              <button type="submit" disabled={loading} className="w-full py-2.5 px-4 bg-gradient-to-r from-primary-600 to-primary-500 text-white font-medium rounded-lg hover:from-primary-500 hover:to-primary-400 disabled:opacity-50 transition-all text-sm">
+                {loading ? 'Verifying...' : 'Enable MFA'}
+              </button>
+            </form>
+          </>
+        )}
+
+        {step === 'codes' && (
+          <>
+            <h3 className="text-lg font-semibold text-white mb-2">Recovery Codes</h3>
+            <p className="text-sm text-dark-400 mb-4">Save these codes in a safe place. Each code can only be used once.</p>
+            <div className="bg-dark-800 rounded-lg p-4 mb-4 grid grid-cols-2 gap-2">
+              {recoveryCodes.map((c, i) => (
+                <code key={i} className="text-sm text-dark-300 font-mono">{c}</code>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button onClick={copyRecoveryCodes} className="flex-1 py-2.5 px-4 bg-dark-800 border border-dark-700 text-white font-medium rounded-lg hover:bg-dark-700 transition-all text-sm flex items-center justify-center gap-2">
+                <Copy className="w-4 h-4" /> Copy
+              </button>
+              <button onClick={() => { onComplete(); onClose(); }} className="flex-1 py-2.5 px-4 bg-gradient-to-r from-primary-600 to-primary-500 text-white font-medium rounded-lg hover:from-primary-500 hover:to-primary-400 transition-all text-sm">
+                Done
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const { user, refreshUser } = useAuth();
   const [currentPassword, setCurrentPassword] = useState('');
@@ -77,7 +190,25 @@ export default function SettingsPage() {
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
-  const [tab, setTab] = useState<'profile' | 'billing'>('profile');
+  const [tab, setTab] = useState<'profile' | 'security' | 'sessions' | 'billing'>('profile');
+
+  // MFA state
+  const [showMfaSetup, setShowMfaSetup] = useState(false);
+  const [mfaDisableCode, setMfaDisableCode] = useState('');
+  const [mfaDisableError, setMfaDisableError] = useState('');
+  const [mfaDisabling, setMfaDisabling] = useState(false);
+  const [showDisableMfa, setShowDisableMfa] = useState(false);
+
+  // Sessions state
+  const [sessions, setSessions] = useState<ActiveSession[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+
+  // Passkeys state
+  const [passkeys, setPasskeys] = useState<PasskeyCredential[]>([]);
+  const [passkeysLoading, setPasskeysLoading] = useState(false);
+  const [passkeyName, setPasskeyName] = useState('');
+  const [addingPasskey, setAddingPasskey] = useState(false);
+  const [passkeyError, setPasskeyError] = useState('');
 
   // Billing state
   const [billingStatus, setBillingStatus] = useState<BillingStatus>('none');
@@ -91,6 +222,22 @@ export default function SettingsPage() {
   const [billingLoading, setBillingLoading] = useState(false);
   const [portalLoading, setPortalLoading] = useState(false);
   const [selectedTx, setSelectedTx] = useState<FinancialTransaction | null>(null);
+
+  const loadSessions = () => {
+    setSessionsLoading(true);
+    authApi.listSessions()
+      .then((data) => setSessions(data.sessions))
+      .catch(() => {})
+      .finally(() => setSessionsLoading(false));
+  };
+
+  const loadPasskeys = () => {
+    setPasskeysLoading(true);
+    authApi.listPasskeys()
+      .then((data) => setPasskeys(data.passkeys || []))
+      .catch(() => {})
+      .finally(() => setPasskeysLoading(false));
+  };
 
   const loadBillingData = () => {
     setBillingLoading(true);
@@ -112,9 +259,9 @@ export default function SettingsPage() {
   };
 
   useEffect(() => {
-    if (tab === 'billing') {
-      loadBillingData();
-    }
+    if (tab === 'billing') loadBillingData();
+    if (tab === 'sessions') loadSessions();
+    if (tab === 'security') loadPasskeys();
   }, [tab, txPage]);
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -145,6 +292,70 @@ export default function SettingsPage() {
     }
   };
 
+  const handleDisableMfa = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMfaDisableError('');
+    setMfaDisabling(true);
+    try {
+      await authApi.mfaDisable(mfaDisableCode);
+      await refreshUser();
+      setShowDisableMfa(false);
+      setMfaDisableCode('');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setMfaDisableError(msg || 'Invalid code');
+    } finally {
+      setMfaDisabling(false);
+    }
+  };
+
+  const handleRevokeSession = async (id: string) => {
+    try {
+      await authApi.revokeSession(id);
+      setSessions(s => s.filter(session => session.id !== id));
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleRevokeAllSessions = async () => {
+    try {
+      await authApi.revokeAllSessions();
+      loadSessions();
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleAddPasskey = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasskeyError('');
+    setAddingPasskey(true);
+    try {
+      const options = await authApi.passkeyRegisterBegin();
+      const credential = await navigator.credentials.create({ publicKey: options });
+      if (!credential) throw new Error('No credential created');
+      await authApi.passkeyRegisterFinish({ name: passkeyName || 'My Passkey', credential });
+      setPasskeyName('');
+      loadPasskeys();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+        || (err as Error)?.message || 'Failed to add passkey';
+      setPasskeyError(msg);
+    } finally {
+      setAddingPasskey(false);
+    }
+  };
+
+  const handleDeletePasskey = async (id: string) => {
+    try {
+      await authApi.deletePasskey(id);
+      setPasskeys(p => p.filter(pk => pk.id !== id));
+    } catch {
+      // ignore
+    }
+  };
+
   const handlePortal = async () => {
     setPortalLoading(true);
     try {
@@ -159,6 +370,13 @@ export default function SettingsPage() {
 
   const totalPages = Math.ceil(txTotal / 10);
 
+  const tabs = [
+    { key: 'profile' as const, label: 'Profile' },
+    { key: 'security' as const, label: 'Security' },
+    { key: 'sessions' as const, label: 'Sessions' },
+    { key: 'billing' as const, label: 'Billing' },
+  ];
+
   return (
     <div>
       <div className="mb-8">
@@ -170,28 +388,23 @@ export default function SettingsPage() {
       </div>
 
       {/* Tab Navigation */}
-      <div className="flex gap-1 mb-6 bg-dark-900/50 border border-dark-800 rounded-xl p-1 max-w-xs">
-        <button
-          onClick={() => setTab('profile')}
-          className={`flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-            tab === 'profile' ? 'bg-dark-700 text-white' : 'text-dark-400 hover:text-dark-300'
-          }`}
-        >
-          Profile
-        </button>
-        <button
-          onClick={() => setTab('billing')}
-          className={`flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-            tab === 'billing' ? 'bg-dark-700 text-white' : 'text-dark-400 hover:text-dark-300'
-          }`}
-        >
-          Billing
-        </button>
+      <div className="flex gap-1 mb-6 bg-dark-900/50 border border-dark-800 rounded-xl p-1 max-w-md">
+        {tabs.map(t => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+              tab === t.key ? 'bg-dark-700 text-white' : 'text-dark-400 hover:text-dark-300'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
+      {/* Profile Tab */}
       {tab === 'profile' && (
         <div className="space-y-6 max-w-2xl">
-          {/* Profile Section */}
           <div className="bg-dark-900/50 backdrop-blur-sm border border-dark-800 rounded-2xl p-6">
             <h2 className="text-lg font-semibold text-white flex items-center gap-2 mb-4">
               <User className="w-5 h-5 text-dark-400" />
@@ -241,7 +454,7 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* Change Password Section */}
+          {/* Change Password */}
           <div className="bg-dark-900/50 backdrop-blur-sm border border-dark-800 rounded-2xl p-6">
             <h2 className="text-lg font-semibold text-white flex items-center gap-2 mb-4">
               <KeyRound className="w-5 h-5 text-dark-400" />
@@ -289,6 +502,182 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {/* Security Tab */}
+      {tab === 'security' && (
+        <div className="space-y-6 max-w-2xl">
+          {/* MFA Section */}
+          <div className="bg-dark-900/50 backdrop-blur-sm border border-dark-800 rounded-2xl p-6">
+            <h2 className="text-lg font-semibold text-white flex items-center gap-2 mb-4">
+              <Shield className="w-5 h-5 text-dark-400" />
+              Two-Factor Authentication
+            </h2>
+
+            {user?.totpEnabled ? (
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="flex items-center gap-1 text-sm text-accent-emerald">
+                    <CheckCircle className="w-4 h-4" /> Enabled
+                  </span>
+                </div>
+
+                {showDisableMfa ? (
+                  <form onSubmit={handleDisableMfa} className="space-y-3">
+                    {mfaDisableError && (
+                      <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-sm text-red-400">{mfaDisableError}</div>
+                    )}
+                    <div>
+                      <label className="block text-sm font-medium text-dark-300 mb-1.5">Enter TOTP code or recovery code to disable</label>
+                      <input
+                        type="text"
+                        required
+                        autoFocus
+                        value={mfaDisableCode}
+                        onChange={(e) => setMfaDisableCode(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-dark-800 border border-dark-700 rounded-lg text-white focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
+                        placeholder="000000"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button type="submit" disabled={mfaDisabling} className="py-2 px-4 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg hover:bg-red-500/30 text-sm disabled:opacity-50 transition-all">
+                        {mfaDisabling ? 'Disabling...' : 'Confirm Disable'}
+                      </button>
+                      <button type="button" onClick={() => { setShowDisableMfa(false); setMfaDisableCode(''); setMfaDisableError(''); }} className="py-2 px-4 bg-dark-800 text-dark-300 border border-dark-700 rounded-lg hover:bg-dark-700 text-sm transition-all">
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <button
+                    onClick={() => setShowDisableMfa(true)}
+                    className="py-2 px-4 bg-dark-800 text-dark-300 border border-dark-700 rounded-lg hover:bg-dark-700 text-sm transition-all"
+                  >
+                    Disable MFA
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div>
+                <p className="text-sm text-dark-400 mb-4">Add an extra layer of security to your account with a TOTP authenticator app.</p>
+                <button
+                  onClick={() => setShowMfaSetup(true)}
+                  className="py-2.5 px-6 bg-gradient-to-r from-primary-600 to-primary-500 text-white font-medium rounded-lg hover:from-primary-500 hover:to-primary-400 transition-all text-sm"
+                >
+                  Enable Two-Factor Authentication
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Passkeys Section */}
+          <div className="bg-dark-900/50 backdrop-blur-sm border border-dark-800 rounded-2xl p-6">
+            <h2 className="text-lg font-semibold text-white flex items-center gap-2 mb-4">
+              <Fingerprint className="w-5 h-5 text-dark-400" />
+              Passkeys
+            </h2>
+
+            {passkeysLoading ? (
+              <LoadingSpinner size="sm" className="py-4" />
+            ) : (
+              <>
+                {passkeys.length > 0 && (
+                  <div className="space-y-2 mb-4">
+                    {passkeys.map(pk => (
+                      <div key={pk.id} className="flex items-center justify-between py-2 px-3 bg-dark-800/50 rounded-lg">
+                        <div>
+                          <p className="text-sm text-white">{pk.name}</p>
+                          <p className="text-xs text-dark-400">
+                            Added {new Date(pk.createdAt).toLocaleDateString()}
+                            {pk.lastUsedAt && ` · Last used ${new Date(pk.lastUsedAt).toLocaleDateString()}`}
+                          </p>
+                        </div>
+                        <button onClick={() => handleDeletePasskey(pk.id)} className="text-dark-400 hover:text-red-400 transition-colors">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {passkeyError && (
+                  <div className="mb-4 bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-sm text-red-400">{passkeyError}</div>
+                )}
+
+                <form onSubmit={handleAddPasskey} className="flex gap-2">
+                  <input
+                    type="text"
+                    value={passkeyName}
+                    onChange={(e) => setPasskeyName(e.target.value)}
+                    className="flex-1 px-4 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors text-sm"
+                    placeholder="Passkey name (e.g., MacBook)"
+                  />
+                  <button type="submit" disabled={addingPasskey} className="py-2 px-4 bg-dark-800 border border-dark-700 text-white rounded-lg hover:bg-dark-700 text-sm disabled:opacity-50 transition-all">
+                    {addingPasskey ? 'Adding...' : 'Add Passkey'}
+                  </button>
+                </form>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Sessions Tab */}
+      {tab === 'sessions' && (
+        <div className="space-y-6 max-w-2xl">
+          <div className="bg-dark-900/50 backdrop-blur-sm border border-dark-800 rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                <Monitor className="w-5 h-5 text-dark-400" />
+                Active Sessions
+              </h2>
+              {sessions.length > 1 && (
+                <button
+                  onClick={handleRevokeAllSessions}
+                  className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                >
+                  Revoke all other sessions
+                </button>
+              )}
+            </div>
+
+            {sessionsLoading ? (
+              <LoadingSpinner size="sm" className="py-8" />
+            ) : sessions.length === 0 ? (
+              <p className="text-sm text-dark-400">No active sessions found.</p>
+            ) : (
+              <div className="space-y-3">
+                {sessions.map(session => (
+                  <div key={session.id} className="flex items-center justify-between py-3 px-4 bg-dark-800/50 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <Smartphone className="w-5 h-5 text-dark-400 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-sm text-white">
+                          {session.deviceInfo || session.userAgent.slice(0, 50)}
+                          {session.isCurrent && (
+                            <span className="ml-2 px-2 py-0.5 bg-primary-500/20 text-primary-400 text-xs rounded">Current</span>
+                          )}
+                        </p>
+                        <p className="text-xs text-dark-400">
+                          {session.ipAddress} · Last active {new Date(session.lastActiveAt).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                    {!session.isCurrent && (
+                      <button
+                        onClick={() => handleRevokeSession(session.id)}
+                        className="text-xs text-red-400 hover:text-red-300 transition-colors shrink-0"
+                      >
+                        Revoke
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Billing Tab */}
       {tab === 'billing' && (
         <div className="space-y-6 max-w-3xl">
           {billingLoading ? (
@@ -430,6 +819,11 @@ export default function SettingsPage() {
             <InvoiceModal tx={selectedTx} tenantName={tenantName || 'Your Organization'} onClose={() => setSelectedTx(null)} />
           )}
         </div>
+      )}
+
+      {/* MFA Setup Modal */}
+      {showMfaSetup && (
+        <MFASetupModal onClose={() => setShowMfaSetup(false)} onComplete={refreshUser} />
       )}
     </div>
   );

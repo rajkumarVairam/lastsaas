@@ -19,6 +19,7 @@ type Config struct {
 	Email       EmailConfig      `yaml:"email"`
 	App         AppConfig        `yaml:"app"`
 	Stripe      StripeConfig     `yaml:"stripe"`
+	WebAuthn    WebAuthnConfig   `yaml:"webauthn"`
 }
 
 type ServerConfig struct {
@@ -44,9 +45,21 @@ type JWTConfig struct {
 }
 
 type OAuthConfig struct {
-	GoogleClientID     string `yaml:"google_client_id"`
-	GoogleClientSecret string `yaml:"google_client_secret"`
-	GoogleRedirectURL  string `yaml:"google_redirect_url"`
+	GoogleClientID        string `yaml:"google_client_id"`
+	GoogleClientSecret    string `yaml:"google_client_secret"`
+	GoogleRedirectURL     string `yaml:"google_redirect_url"`
+	GitHubClientID        string `yaml:"github_client_id"`
+	GitHubClientSecret    string `yaml:"github_client_secret"`
+	GitHubRedirectURL     string `yaml:"github_redirect_url"`
+	MicrosoftClientID     string `yaml:"microsoft_client_id"`
+	MicrosoftClientSecret string `yaml:"microsoft_client_secret"`
+	MicrosoftRedirectURL  string `yaml:"microsoft_redirect_url"`
+}
+
+type WebAuthnConfig struct {
+	RPName   string `yaml:"rp_name"`
+	RPID     string `yaml:"rp_id"`
+	RPOrigin string `yaml:"rp_origin"`
 }
 
 type EmailConfig struct {

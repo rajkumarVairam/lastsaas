@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { AuthResponse, TenantMember, TenantDetail, TenantListItem, UserListItem, Message, AboutInfo, SystemLog, ConfigVar, UserDetail, UserMembershipDetail, DeletePreflightResponse, Plan, EntitlementKeyInfo, PublicPlansResponse, CreditBundle, SystemNode, SystemMetric, FinancialTransaction, DailyMetricPoint, IntegrationCheck, APIKey, Webhook, WebhookDelivery, WebhookEventTypeInfo, BrandingConfig, MediaItem, CustomPage } from '../types';
+import type { AuthResponse, MFARequiredResponse, AuthProviders, ActiveSession, ActivityLogEntry, PasskeyCredential, ImpersonationResponse, TenantMember, TenantDetail, TenantListItem, UserListItem, Message, AboutInfo, SystemLog, ConfigVar, UserDetail, UserMembershipDetail, DeletePreflightResponse, Plan, EntitlementKeyInfo, PublicPlansResponse, CreditBundle, SystemNode, SystemMetric, FinancialTransaction, DailyMetricPoint, IntegrationCheck, APIKey, Webhook, WebhookDelivery, WebhookEventTypeInfo, BrandingConfig, MediaItem, CustomPage } from '../types';
 
 const api = axios.create({
   baseURL: '/api',
@@ -58,7 +58,7 @@ export const authApi = {
   register: (data: { email: string; password: string; displayName: string; invitationToken?: string }) =>
     api.post<AuthResponse>('/auth/register', data).then(r => r.data),
   login: (data: { email: string; password: string }) =>
-    api.post<AuthResponse>('/auth/login', data).then(r => r.data),
+    api.post<AuthResponse | MFARequiredResponse>('/auth/login', data).then(r => r.data),
   logout: (refreshToken?: string) =>
     api.post('/auth/logout', { refreshToken }),
   refresh: (refreshToken: string) =>
@@ -77,6 +77,58 @@ export const authApi = {
     api.post('/auth/change-password', { currentPassword, newPassword }).then(r => r.data),
   acceptInvitation: (token: string) =>
     api.post('/auth/accept-invitation', { token }).then(r => r.data),
+
+  // Auth providers discovery
+  getProviders: () =>
+    api.get<AuthProviders>('/auth/providers').then(r => r.data),
+
+  // MFA / TOTP
+  mfaSetup: () =>
+    api.post<{ secret: string; qrCodeUrl: string }>('/auth/mfa/setup').then(r => r.data),
+  mfaVerifySetup: (code: string) =>
+    api.post<{ recoveryCodes: string[] }>('/auth/mfa/verify-setup', { code }).then(r => r.data),
+  mfaDisable: (code: string) =>
+    api.post('/auth/mfa/disable', { code }).then(r => r.data),
+  mfaChallenge: (mfaToken: string, code: string) =>
+    api.post<AuthResponse>('/auth/mfa/challenge', { mfaToken, code }).then(r => r.data),
+  mfaRegenerateCodes: (code: string) =>
+    api.post<{ recoveryCodes: string[] }>('/auth/mfa/regenerate-codes', { code }).then(r => r.data),
+
+  // Magic Link
+  requestMagicLink: (email: string) =>
+    api.post('/auth/magic-link', { email }).then(r => r.data),
+  verifyMagicLink: (token: string) =>
+    api.post<AuthResponse | MFARequiredResponse>('/auth/magic-link/verify', { token }).then(r => r.data),
+
+  // Passkeys / WebAuthn
+  passkeyRegisterBegin: () =>
+    api.post('/auth/passkeys/register/begin').then(r => r.data),
+  passkeyRegisterFinish: (data: { name: string; credential: unknown }) =>
+    api.post('/auth/passkeys/register/finish', data).then(r => r.data),
+  passkeyLoginBegin: () =>
+    api.post('/auth/passkeys/login/begin').then(r => r.data),
+  passkeyLoginFinish: (credential: unknown) =>
+    api.post<AuthResponse>('/auth/passkeys/login/finish', { credential }).then(r => r.data),
+  listPasskeys: () =>
+    api.get<{ passkeys: PasskeyCredential[] }>('/auth/passkeys').then(r => r.data),
+  deletePasskey: (id: string) =>
+    api.delete(`/auth/passkeys/${id}`).then(r => r.data),
+
+  // Sessions
+  listSessions: () =>
+    api.get<{ sessions: ActiveSession[] }>('/auth/sessions').then(r => r.data),
+  revokeSession: (id: string) =>
+    api.delete(`/auth/sessions/${id}`).then(r => r.data),
+  revokeAllSessions: () =>
+    api.delete('/auth/sessions').then(r => r.data),
+
+  // Preferences
+  updatePreferences: (data: { themePreference?: string }) =>
+    api.patch('/auth/preferences', data).then(r => r.data),
+
+  // Onboarding
+  completeOnboarding: () =>
+    api.post('/auth/complete-onboarding').then(r => r.data),
 };
 
 // --- Tenant ---
@@ -91,6 +143,10 @@ export const tenantApi = {
     api.patch(`/tenant/members/${userId}/role`, { role }).then(r => r.data),
   transferOwnership: (userId: string) =>
     api.post(`/tenant/members/${userId}/transfer-ownership`).then(r => r.data),
+  getActivity: (params?: { page?: number; perPage?: number; action?: string }) =>
+    api.get<{ logs: ActivityLogEntry[]; total: number }>('/tenant/activity', { params }).then(r => r.data),
+  updateSettings: (data: { name?: string }) =>
+    api.patch('/tenant/settings', data).then(r => r.data),
 };
 
 // --- Messages ---
@@ -215,6 +271,10 @@ export const adminApi = {
     api.post<{ secret: string; secretPreview: string }>(`/admin/webhooks/${id}/regenerate-secret`).then(r => r.data),
   listWebhookEventTypes: () =>
     api.get<{ eventTypes: WebhookEventTypeInfo[] }>('/admin/webhooks/event-types').then(r => r.data),
+
+  // Impersonation
+  impersonateUser: (userId: string) =>
+    api.post<ImpersonationResponse>(`/admin/users/${userId}/impersonate`).then(r => r.data),
 };
 
 // --- Plans (public, authenticated) ---
@@ -231,7 +291,7 @@ export const bundlesApi = {
 
 // --- Billing ---
 export const billingApi = {
-  checkout: (data: { planId?: string; bundleId?: string; billingInterval?: string }) =>
+  checkout: (data: { planId?: string; bundleId?: string; billingInterval?: string; seatQuantity?: number }) =>
     api.post<{ checkoutUrl?: string; waived?: boolean }>('/billing/checkout', data).then(r => r.data),
   portal: () =>
     api.post<{ portalUrl: string }>('/billing/portal').then(r => r.data),

@@ -22,6 +22,7 @@ type Tenant struct {
 	BillingInterval      string             `json:"billingInterval,omitempty" bson:"billingInterval,omitempty"`
 	CurrentPeriodEnd     *time.Time         `json:"currentPeriodEnd,omitempty" bson:"currentPeriodEnd,omitempty"`
 	CanceledAt           *time.Time         `json:"canceledAt,omitempty" bson:"canceledAt,omitempty"`
+	SeatQuantity         int                `json:"seatQuantity" bson:"seatQuantity"`
 	CreatedAt            time.Time          `json:"createdAt" bson:"createdAt"`
 	UpdatedAt            time.Time          `json:"updatedAt" bson:"updatedAt"`
 }

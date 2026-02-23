@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Users, CheckCircle, XCircle, Search, ChevronLeft, ChevronRight, ArrowUpDown } from 'lucide-react';
-import { adminApi } from '../../api/client';
+import { Users, CheckCircle, XCircle, Search, ChevronLeft, ChevronRight, ArrowUpDown, UserCheck } from 'lucide-react';
+import { adminApi, setAuthToken } from '../../api/client';
+import { useAuth } from '../../contexts/AuthContext';
 import type { UserListItem } from '../../types';
 import LoadingSpinner from '../../components/LoadingSpinner';
 
@@ -9,6 +10,7 @@ const PAGE_SIZE = 25;
 
 export default function UsersPage() {
   const navigate = useNavigate();
+  const { user: currentUser, refreshUser } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [users, setUsers] = useState<UserListItem[]>([]);
@@ -65,6 +67,20 @@ export default function UsersPage() {
     try {
       await adminApi.updateUserStatus(user.id, !user.isActive);
       setUsers(prev => prev.map(u => u.id === user.id ? { ...u, isActive: !u.isActive } : u));
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleImpersonate = async (userId: string) => {
+    try {
+      const data = await adminApi.impersonateUser(userId);
+      localStorage.setItem('lastsaas_access_token', data.accessToken);
+      localStorage.removeItem('lastsaas_refresh_token');
+      localStorage.setItem('lastsaas_impersonating', 'true');
+      setAuthToken(data.accessToken);
+      await refreshUser();
+      navigate('/dashboard');
     } catch {
       // ignore
     }
@@ -162,16 +178,27 @@ export default function UsersPage() {
                         </span>
                       </td>
                       <td className="px-6 py-3.5 text-right">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); toggleStatus(user); }}
-                          className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
-                            user.isActive
-                              ? 'border-red-500/30 text-red-400 hover:bg-red-500/10'
-                              : 'border-accent-emerald/30 text-accent-emerald hover:bg-accent-emerald/10'
-                          }`}
-                        >
-                          {user.isActive ? 'Disable' : 'Enable'}
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                          {currentUser && user.id !== currentUser.id && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleImpersonate(user.id); }}
+                              className="text-xs px-3 py-1.5 rounded-lg border border-primary-500/30 text-primary-400 hover:bg-primary-500/10 transition-colors"
+                              title="Impersonate user"
+                            >
+                              <UserCheck className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); toggleStatus(user); }}
+                            className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+                              user.isActive
+                                ? 'border-red-500/30 text-red-400 hover:bg-red-500/10'
+                                : 'border-accent-emerald/30 text-accent-emerald hover:bg-accent-emerald/10'
+                            }`}
+                          >
+                            {user.isActive ? 'Disable' : 'Enable'}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
