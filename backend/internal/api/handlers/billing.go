@@ -8,9 +8,11 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"strings"
 	"strconv"
 	"time"
 
+	"lastsaas/internal/configstore"
 	"lastsaas/internal/db"
 	"lastsaas/internal/events"
 	"lastsaas/internal/middleware"
@@ -30,14 +32,16 @@ type BillingHandler struct {
 	db     *db.MongoDB
 	events events.Emitter
 	syslog *syslog.Logger
+	store  *configstore.Store
 }
 
-func NewBillingHandler(stripeSvc *stripeservice.Service, database *db.MongoDB, emitter events.Emitter, sysLogger *syslog.Logger) *BillingHandler {
+func NewBillingHandler(stripeSvc *stripeservice.Service, database *db.MongoDB, emitter events.Emitter, sysLogger *syslog.Logger, store *configstore.Store) *BillingHandler {
 	return &BillingHandler{
 		stripe: stripeSvc,
 		db:     database,
 		events: emitter,
 		syslog: sysLogger,
+		store:  store,
 	}
 }
 
@@ -438,16 +442,54 @@ func (h *BillingHandler) GetInvoicePDF(w http.ResponseWriter, r *http.Request) {
 	pdf := gofpdf.New("P", "mm", "A4", "")
 	pdf.AddPage()
 
-	// Header
+	// Branded title
+	appName := h.store.Get("app.name")
+	title := "INVOICE"
+	if appName != "" {
+		title = appName + " — INVOICE"
+	}
 	pdf.SetFont("Helvetica", "B", 20)
-	pdf.Cell(0, 12, "INVOICE")
+	pdf.Cell(0, 12, title)
 	pdf.Ln(16)
 
-	// Invoice details
+	// Company info (from) and invoice details side by side
+	companyName := h.store.Get("billing.company_name")
+	companyAddress := h.store.Get("billing.company_address")
+
+	if companyName != "" {
+		pdf.SetFont("Helvetica", "B", 10)
+		pdf.Cell(95, 6, companyName)
+	} else {
+		pdf.Cell(95, 6, "")
+	}
 	pdf.SetFont("Helvetica", "", 10)
 	pdf.Cell(95, 6, fmt.Sprintf("Invoice #: %s", tx.InvoiceNumber))
-	pdf.Cell(95, 6, fmt.Sprintf("Date: %s", tx.CreatedAt.Format("January 2, 2006")))
-	pdf.Ln(8)
+	pdf.Ln(6)
+
+	// Address lines (left) and date (right)
+	addressLines := []string{}
+	if companyAddress != "" {
+		addressLines = strings.Split(strings.ReplaceAll(companyAddress, "\\n", "\n"), "\n")
+	}
+	if len(addressLines) > 0 {
+		pdf.SetFont("Helvetica", "", 9)
+		pdf.Cell(95, 5, strings.TrimSpace(addressLines[0]))
+	} else {
+		pdf.Cell(95, 5, "")
+	}
+	pdf.SetFont("Helvetica", "", 10)
+	pdf.Cell(95, 5, fmt.Sprintf("Date: %s", tx.CreatedAt.Format("January 2, 2006")))
+	pdf.Ln(5)
+
+	// Remaining address lines
+	if len(addressLines) > 1 {
+		pdf.SetFont("Helvetica", "", 9)
+		for _, line := range addressLines[1:] {
+			pdf.Cell(95, 5, strings.TrimSpace(line))
+			pdf.Ln(5)
+		}
+	}
+	pdf.Ln(4)
 
 	// Bill to
 	pdf.SetFont("Helvetica", "B", 10)

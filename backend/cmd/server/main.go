@@ -263,7 +263,7 @@ func main() {
 	plansHandler := handlers.NewPlansHandler(database, sysLogger, cfgStore, stripeSvc)
 	bundlesHandler := handlers.NewBundlesHandler(database, sysLogger)
 	healthHandler := handlers.NewHealthHandler(healthService)
-	billingHandler := handlers.NewBillingHandler(stripeSvc, database, emitter, sysLogger)
+	billingHandler := handlers.NewBillingHandler(stripeSvc, database, emitter, sysLogger, cfgStore)
 	webhookHandler := handlers.NewWebhookHandler(stripeSvc, database, emitter, sysLogger, cfgStore.Get)
 	apiKeysHandler := handlers.NewAPIKeysHandler(database, emitter, sysLogger)
 	webhooksHandler := handlers.NewWebhooksHandler(database, sysLogger, webhookDispatcher)
