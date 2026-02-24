@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"lastsaas/internal/db"
@@ -31,12 +32,22 @@ type logListResponse struct {
 func (h *LogHandler) buildFilter(q map[string][]string) bson.M {
 	filter := bson.M{}
 
-	// Severity filter
+	// Severity filter (supports comma-separated multi-select, e.g. "critical,high,medium")
 	if sev := getFirst(q, "severity"); sev != "" {
-		switch models.LogSeverity(sev) {
-		case models.LogCritical, models.LogHigh, models.LogMedium, models.LogLow, models.LogDebug:
-			filter["severity"] = sev
+		parts := strings.Split(sev, ",")
+		var valid []string
+		for _, p := range parts {
+			switch models.LogSeverity(p) {
+			case models.LogCritical, models.LogHigh, models.LogMedium, models.LogLow, models.LogDebug:
+				valid = append(valid, p)
+			}
 		}
+		if len(valid) == 1 {
+			filter["severity"] = valid[0]
+		} else if len(valid) > 1 && len(valid) < 5 {
+			filter["severity"] = bson.M{"$in": valid}
+		}
+		// All 5 selected or none valid → no filter (fastest path)
 	}
 
 	// Category filter

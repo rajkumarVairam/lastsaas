@@ -29,6 +29,8 @@ const DATE_PRESETS = [
   { label: 'Last 30d', hours: 720 },
 ];
 
+const ALL_SEVERITIES: LogSeverity[] = ['critical', 'high', 'medium', 'low', 'debug'];
+
 const PER_PAGE_OPTIONS = [25, 50, 100];
 
 export default function LogsPage() {
@@ -37,7 +39,7 @@ export default function LogsPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(50);
-  const [severity, setSeverity] = useState('');
+  const [activeSeverities, setActiveSeverities] = useState<Set<LogSeverity>>(() => new Set(ALL_SEVERITIES));
   const [category, setCategory] = useState('');
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
@@ -59,7 +61,9 @@ export default function LogsPage() {
     setLoading(true);
     try {
       const params: Record<string, string | number> = { page, perPage };
-      if (severity) params.severity = severity;
+      if (activeSeverities.size > 0 && activeSeverities.size < 5) {
+        params.severity = Array.from(activeSeverities).join(',');
+      }
       if (category) params.category = category;
       if (search) params.search = search;
       if (userId) params.userId = userId;
@@ -75,7 +79,7 @@ export default function LogsPage() {
     } finally {
       if (!controller.signal.aborted) setLoading(false);
     }
-  }, [page, perPage, severity, category, search, userId, fromDate, toDate]);
+  }, [page, perPage, activeSeverities, category, search, userId, fromDate, toDate]);
 
   const fetchSeverityCounts = useCallback(async () => {
     try {
@@ -117,9 +121,19 @@ export default function LogsPage() {
     setSearch(searchInput);
   };
 
-  const handleSeverityChange = (sev: string) => {
+  const toggleSeverity = (sev: LogSeverity) => {
     setPage(1);
-    setSeverity(sev);
+    setActiveSeverities(prev => {
+      const next = new Set(prev);
+      if (next.has(sev)) {
+        next.delete(sev);
+        // Deselecting the last one re-selects all
+        if (next.size === 0) return new Set(ALL_SEVERITIES);
+      } else {
+        next.add(sev);
+      }
+      return next;
+    });
   };
 
   const handleCategoryChange = (cat: string) => {
@@ -150,7 +164,9 @@ export default function LogsPage() {
   const handleExport = async () => {
     try {
       const params: Record<string, string> = {};
-      if (severity) params.severity = severity;
+      if (activeSeverities.size > 0 && activeSeverities.size < 5) {
+        params.severity = Array.from(activeSeverities).join(',');
+      }
       if (category) params.category = category;
       if (search) params.search = search;
       if (fromDate) params.fromDate = fromDate;
@@ -171,8 +187,6 @@ export default function LogsPage() {
     fetchLogs();
     fetchSeverityCounts();
   };
-
-  const totalCount = Object.values(severityCounts).reduce((a, b) => a + b, 0);
 
   return (
     <div>
@@ -213,30 +227,27 @@ export default function LogsPage() {
         </div>
       </div>
 
-      {/* Severity summary bar */}
-      {totalCount > 0 && (
-        <div className="flex items-center gap-3 mb-4 flex-wrap">
-          {(['critical', 'high', 'medium', 'low', 'debug'] as LogSeverity[]).map(sev => {
-            const count = severityCounts[sev] || 0;
-            if (count === 0) return null;
-            const cfg = severityConfig[sev];
-            const isActive = severity === sev;
-            return (
-              <button
-                key={sev}
-                onClick={() => handleSeverityChange(isActive ? '' : sev)}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors border ${
-                  isActive
-                    ? `${cfg.bg} ${cfg.color} border-current`
-                    : `${cfg.bg} ${cfg.color} border-transparent hover:border-current`
-                }`}
-              >
-                {cfg.label}: {count.toLocaleString()}
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {/* Severity multi-select toggles */}
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        {ALL_SEVERITIES.map(sev => {
+          const count = severityCounts[sev] || 0;
+          const cfg = severityConfig[sev];
+          const isActive = activeSeverities.has(sev);
+          return (
+            <button
+              key={sev}
+              onClick={() => toggleSeverity(sev)}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors border ${
+                isActive
+                  ? `${cfg.bg} ${cfg.color} border-current`
+                  : 'bg-dark-800/50 text-dark-600 border-dark-700/50 line-through'
+              }`}
+            >
+              {cfg.label}{count > 0 ? `: ${count.toLocaleString()}` : ''}
+            </button>
+          );
+        })}
+      </div>
 
       {/* Active user filter chip */}
       {userId && (
@@ -302,19 +313,6 @@ export default function LogsPage() {
             </button>
           )}
         </form>
-
-        <select
-          value={severity}
-          onChange={(e) => handleSeverityChange(e.target.value)}
-          className="px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white focus:outline-none focus:border-primary-500"
-        >
-          <option value="">All severities</option>
-          <option value="critical">Critical</option>
-          <option value="high">High</option>
-          <option value="medium">Medium</option>
-          <option value="low">Low</option>
-          <option value="debug">Debug</option>
-        </select>
 
         <select
           value={category}
