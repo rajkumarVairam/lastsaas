@@ -410,6 +410,8 @@ export interface FinancialTransaction {
   userId: string;
   type: 'subscription' | 'credit_purchase' | 'refund';
   amountCents: number;
+  subtotalCents: number;
+  taxAmountCents: number;
   currency: string;
   description: string;
   invoiceNumber: string;

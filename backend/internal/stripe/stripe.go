@@ -110,7 +110,8 @@ func (s *Service) GetOrCreatePrice(ctx context.Context, entityType string, entit
 
 	// Create product
 	prod, err := product.New(&stripe.ProductParams{
-		Name: stripe.String(name),
+		Name:    stripe.String(name),
+		TaxCode: stripe.String("txcd_10103001"), // Software as a Service (SaaS) - business use
 		Metadata: map[string]string{
 			"entityType": entityType,
 			"entityId":   entityID.Hex(),
@@ -170,6 +171,7 @@ type CheckoutRequest struct {
 	CustomLineItems []CheckoutLineItem  // Override default single line item
 	TrialDays       int                 // Free trial period in days (0 = no trial)
 	Currency        string              // Currency code (e.g. "usd", "eur"); defaults to "usd"
+	AutomaticTax    bool                // Enable Stripe Tax for automatic tax calculation
 }
 
 // CreateCheckoutSession creates a Stripe Checkout Session for a subscription or one-time payment.
@@ -241,6 +243,19 @@ func (s *Service) CreateCheckoutSession(ctx context.Context, req CheckoutRequest
 		AllowPromotionCodes: stripe.Bool(true),
 		Metadata:            metadata,
 		LineItems:           lineItems,
+	}
+
+	// Stripe Tax: automatic tax calculation + tax ID collection
+	if req.AutomaticTax {
+		params.AutomaticTax = &stripe.CheckoutSessionAutomaticTaxParams{
+			Enabled: stripe.Bool(true),
+		}
+		params.TaxIDCollection = &stripe.CheckoutSessionTaxIDCollectionParams{
+			Enabled: stripe.Bool(true),
+		}
+		params.CustomerUpdate = &stripe.CheckoutSessionCustomerUpdateParams{
+			Address: stripe.String("auto"),
+		}
 	}
 
 	// Subscription-specific settings (trial, instance metadata)

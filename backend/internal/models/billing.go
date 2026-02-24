@@ -32,6 +32,8 @@ type FinancialTransaction struct {
 	UserID               primitive.ObjectID  `json:"userId" bson:"userId"`
 	Type                 TransactionType     `json:"type" bson:"type"`
 	AmountCents          int64               `json:"amountCents" bson:"amountCents"`
+	SubtotalCents        int64               `json:"subtotalCents" bson:"subtotalCents"`
+	TaxAmountCents       int64               `json:"taxAmountCents" bson:"taxAmountCents"`
 	Currency             string              `json:"currency" bson:"currency"`
 	Description          string              `json:"description" bson:"description"`
 	InvoiceNumber        string              `json:"invoiceNumber" bson:"invoiceNumber"`

@@ -169,12 +169,18 @@ func (h *WebhookHandler) handleCheckoutCompleted(ctx context.Context, event stri
 			"$inc": bson.M{"purchasedCredits": plan.BonusCredits},
 		})
 
-		// Record transaction
+		// Record transaction with tax breakdown
 		amountCents := int64(0)
 		if session.AmountTotal > 0 {
 			amountCents = session.AmountTotal
 		}
-		h.recordTransaction(ctx, tenantID, userID, models.TransactionSubscription, amountCents, plan.Name, billingInterval, &planID, nil, subscriptionID, session.ID)
+		taxAmountCents := int64(0)
+		subtotalCents := amountCents
+		if session.TotalDetails != nil && session.TotalDetails.AmountTax > 0 {
+			taxAmountCents = session.TotalDetails.AmountTax
+			subtotalCents = amountCents - taxAmountCents
+		}
+		h.recordTransaction(ctx, tenantID, userID, models.TransactionSubscription, amountCents, subtotalCents, taxAmountCents, plan.Name, billingInterval, &planID, nil, subscriptionID, session.ID)
 
 		h.syslog.High(ctx, fmt.Sprintf("Subscription activated: tenant %s, plan %s (%s), amount $%.2f",
 			tenantID.Hex(), plan.Name, billingInterval, float64(amountCents)/100))
@@ -219,7 +225,13 @@ func (h *WebhookHandler) handleCheckoutCompleted(ctx context.Context, event stri
 		if session.AmountTotal > 0 {
 			amountCents = session.AmountTotal
 		}
-		h.recordTransaction(ctx, tenantID, userID, models.TransactionCreditPurchase, amountCents, bundle.Name, "", nil, &bundleID, "", session.ID)
+		bundleTax := int64(0)
+		bundleSubtotal := amountCents
+		if session.TotalDetails != nil && session.TotalDetails.AmountTax > 0 {
+			bundleTax = session.TotalDetails.AmountTax
+			bundleSubtotal = amountCents - bundleTax
+		}
+		h.recordTransaction(ctx, tenantID, userID, models.TransactionCreditPurchase, amountCents, bundleSubtotal, bundleTax, bundle.Name, "", nil, &bundleID, "", session.ID)
 
 		h.syslog.High(ctx, fmt.Sprintf("Credit bundle purchased: tenant %s, bundle %s (%d credits), amount $%.2f",
 			tenantID.Hex(), bundle.Name, bundle.Credits, float64(amountCents)/100))
@@ -289,8 +301,14 @@ func (h *WebhookHandler) handleInvoicePaid(ctx context.Context, event stripe.Eve
 		}
 	}
 
-	// Record transaction
+	// Record transaction with tax breakdown
 	amountCents := invoice.AmountPaid
+	invoiceTax := int64(0)
+	invoiceSubtotal := amountCents
+	if invoice.Total > 0 && invoice.TotalExcludingTax > 0 && invoice.Total > invoice.TotalExcludingTax {
+		invoiceTax = invoice.Total - invoice.TotalExcludingTax
+		invoiceSubtotal = invoice.TotalExcludingTax
+	}
 	// Find the owner of this tenant for the transaction record
 	var membership models.TenantMembership
 	h.db.TenantMemberships().FindOne(ctx, bson.M{"tenantId": tenant.ID, "role": models.RoleOwner}).Decode(&membership)
@@ -303,7 +321,7 @@ func (h *WebhookHandler) handleInvoicePaid(ctx context.Context, event stripe.Eve
 		}
 	}
 
-	h.recordTransaction(ctx, tenant.ID, membership.UserID, models.TransactionSubscription, amountCents, planName, tenant.BillingInterval, tenant.PlanID, nil, subscriptionID, "")
+	h.recordTransaction(ctx, tenant.ID, membership.UserID, models.TransactionSubscription, amountCents, invoiceSubtotal, invoiceTax, planName, tenant.BillingInterval, tenant.PlanID, nil, subscriptionID, "")
 
 	h.syslog.High(ctx, fmt.Sprintf("Subscription payment received: tenant %s, amount $%.2f",
 		tenant.ID.Hex(), float64(amountCents)/100))
@@ -501,7 +519,7 @@ func (h *WebhookHandler) handleSubscriptionDeleted(ctx context.Context, event st
 	})
 }
 
-func (h *WebhookHandler) recordTransaction(ctx context.Context, tenantID, userID primitive.ObjectID, txType models.TransactionType, amountCents int64, itemName, interval string, planID, bundleID *primitive.ObjectID, stripeSubID, stripeSessionID string) {
+func (h *WebhookHandler) recordTransaction(ctx context.Context, tenantID, userID primitive.ObjectID, txType models.TransactionType, amountCents, subtotalCents, taxAmountCents int64, itemName, interval string, planID, bundleID *primitive.ObjectID, stripeSubID, stripeSessionID string) {
 	invoiceNum, err := h.stripe.NextInvoiceNumber(ctx)
 	if err != nil {
 		log.Printf("Failed to generate invoice number: %v", err)
@@ -518,6 +536,8 @@ func (h *WebhookHandler) recordTransaction(ctx context.Context, tenantID, userID
 		UserID:               userID,
 		Type:                 txType,
 		AmountCents:          amountCents,
+		SubtotalCents:        subtotalCents,
+		TaxAmountCents:       taxAmountCents,
 		Currency:             "usd",
 		Description:          desc,
 		InvoiceNumber:        invoiceNum,

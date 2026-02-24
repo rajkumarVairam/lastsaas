@@ -309,6 +309,21 @@ var SystemDefaults = []models.ConfigVar{
 		IsSystem:    true,
 	},
 	{
+		Name:        "billing.tax.enabled",
+		Description: "Enable Stripe Tax for automatic tax calculation on checkout. Requires Stripe Tax to be configured in the Stripe Dashboard.",
+		Type:        models.ConfigTypeEnum,
+		Value:       "false",
+		Options:     `[{"label":"Enabled","value":"true"},{"label":"Disabled","value":"false"}]`,
+		IsSystem:    true,
+	},
+	{
+		Name:        "billing.tax.id",
+		Description: "Company tax/VAT registration number to display on invoices (e.g. \"VAT: GB123456789\"). Leave blank to omit.",
+		Type:        models.ConfigTypeString,
+		Value:       "",
+		IsSystem:    true,
+	},
+	{
 		Name:        "email.magic_link.subject",
 		Description: "Subject line for the magic link login email. Supports {{.AppName}}.",
 		Type:        models.ConfigTypeTemplate,

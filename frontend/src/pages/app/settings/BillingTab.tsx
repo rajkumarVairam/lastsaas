@@ -148,6 +148,9 @@ export default function BillingTab() {
                       <td className="px-6 py-3 text-sm text-white">{tx.description}</td>
                       <td className="px-6 py-3 text-sm text-white text-right font-mono">
                         ${(tx.amountCents / 100).toFixed(2)}
+                        {tx.taxAmountCents > 0 && (
+                          <span className="block text-xs text-dark-500">incl. ${(tx.taxAmountCents / 100).toFixed(2)} tax</span>
+                        )}
                       </td>
                       <td className="px-6 py-3 text-sm text-dark-400 font-mono">{tx.invoiceNumber}</td>
                       <td className="px-6 py-3">

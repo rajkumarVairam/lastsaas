@@ -76,6 +76,9 @@ func (h *BillingHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 		currency = "usd"
 	}
 
+	// Stripe Tax: automatic tax calculation
+	automaticTax := h.store.Get("billing.tax.enabled") == "true"
+
 	if req.PlanID != "" {
 		planID, err := primitive.ObjectIDFromHex(req.PlanID)
 		if err != nil {
@@ -170,6 +173,7 @@ func (h *BillingHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 				SeatQuantity:    int64(seats),
 				TrialDays:       plan.TrialDays,
 				Currency:        currency,
+				AutomaticTax:    automaticTax,
 			}
 
 			if plan.MonthlyPriceCents > 0 && plan.IncludedSeats > 0 {
@@ -261,6 +265,7 @@ func (h *BillingHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 			UserID:          user.ID.Hex(),
 			TrialDays:       plan.TrialDays,
 			Currency:        currency,
+			AutomaticTax:    automaticTax,
 		})
 		if err != nil {
 			log.Printf("Billing: failed to create checkout session: %v", err)
@@ -298,13 +303,14 @@ func (h *BillingHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 		}
 
 		url, err := h.stripe.CreateCheckoutSession(ctx, stripeservice.CheckoutRequest{
-			CustomerID:  customerID,
-			BundleID:    &bundleID,
-			BundleName:  bundle.Name,
-			AmountCents: bundle.PriceCents,
-			TenantID:    tenant.ID.Hex(),
-			UserID:      user.ID.Hex(),
-			Currency:    currency,
+			CustomerID:   customerID,
+			BundleID:     &bundleID,
+			BundleName:   bundle.Name,
+			AmountCents:  bundle.PriceCents,
+			TenantID:     tenant.ID.Hex(),
+			UserID:       user.ID.Hex(),
+			Currency:     currency,
+			AutomaticTax: automaticTax,
 		})
 		if err != nil {
 			log.Printf("Billing: failed to create checkout session: %v", err)
@@ -466,6 +472,7 @@ func (h *BillingHandler) GetInvoicePDF(w http.ResponseWriter, r *http.Request) {
 	// Company info (from) and invoice details side by side
 	companyName := h.store.Get("billing.company_name")
 	companyAddress := h.store.Get("billing.company_address")
+	companyTaxID := h.store.Get("billing.tax.id")
 
 	if companyName != "" {
 		pdf.SetFont("Helvetica", "B", 10)
@@ -500,6 +507,13 @@ func (h *BillingHandler) GetInvoicePDF(w http.ResponseWriter, r *http.Request) {
 			pdf.Ln(5)
 		}
 	}
+
+	// Company tax/VAT ID
+	if companyTaxID != "" {
+		pdf.SetFont("Helvetica", "", 9)
+		pdf.Cell(95, 5, companyTaxID)
+		pdf.Ln(5)
+	}
 	pdf.Ln(4)
 
 	// Bill to
@@ -528,9 +542,26 @@ func (h *BillingHandler) GetInvoicePDF(w http.ResponseWriter, r *http.Request) {
 		txType = "Credit Purchase"
 	}
 	pdf.CellFormat(45, 8, txType, "1", 0, "", false, 0, "")
-	pdf.CellFormat(45, 8, fmt.Sprintf("$%.2f", float64(tx.AmountCents)/100), "1", 0, "R", false, 0, "")
+	// Show subtotal in line item if tax present, otherwise full amount
+	lineAmount := tx.AmountCents
+	if tx.TaxAmountCents > 0 && tx.SubtotalCents > 0 {
+		lineAmount = tx.SubtotalCents
+	}
+	pdf.CellFormat(45, 8, fmt.Sprintf("$%.2f", float64(lineAmount)/100), "1", 0, "R", false, 0, "")
 	pdf.Ln(12)
 
+	// Totals section
+	if tx.TaxAmountCents > 0 {
+		// Subtotal
+		pdf.SetFont("Helvetica", "", 10)
+		pdf.Cell(145, 7, "Subtotal:")
+		pdf.Cell(45, 7, fmt.Sprintf("$%.2f", float64(tx.SubtotalCents)/100))
+		pdf.Ln(7)
+		// Tax
+		pdf.Cell(145, 7, "Tax:")
+		pdf.Cell(45, 7, fmt.Sprintf("$%.2f", float64(tx.TaxAmountCents)/100))
+		pdf.Ln(7)
+	}
 	// Total
 	pdf.SetFont("Helvetica", "B", 12)
 	pdf.Cell(145, 8, "Total:")

@@ -101,6 +101,11 @@ export default function AdminFinancialPage() {
                         <td className="px-6 py-3 text-sm text-white">{tx.description}</td>
                         <td className="px-6 py-3 text-sm text-white text-right font-mono">
                           {new Intl.NumberFormat(undefined, { style: 'currency', currency: tx.currency || 'usd' }).format(tx.amountCents / 100)}
+                          {tx.taxAmountCents > 0 && (
+                            <span className="block text-xs text-dark-500">
+                              incl. {new Intl.NumberFormat(undefined, { style: 'currency', currency: tx.currency || 'usd' }).format(tx.taxAmountCents / 100)} tax
+                            </span>
+                          )}
                         </td>
                         <td className="px-6 py-3 text-sm text-dark-400 font-mono">{tx.invoiceNumber}</td>
                       </tr>
