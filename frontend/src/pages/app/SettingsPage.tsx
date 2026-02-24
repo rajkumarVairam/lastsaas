@@ -1,18 +1,27 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Settings } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { useBranding } from '../../contexts/BrandingContext';
 import ProfileTab from './settings/ProfileTab';
 import SecurityTab from './settings/SecurityTab';
 import SessionsTab from './settings/SessionsTab';
 import BillingTab from './settings/BillingTab';
 
-const tabs = [
-  { key: 'profile' as const, label: 'Profile' },
-  { key: 'security' as const, label: 'Security' },
-  { key: 'sessions' as const, label: 'Sessions' },
-  { key: 'billing' as const, label: 'Billing' },
-];
-
 export default function SettingsPage() {
+  const { user } = useAuth();
+  const { branding } = useBranding();
+  const passkeysEnabled = branding?.authProviders?.passkeys ?? false;
+  const mfaConfigEnabled = branding?.authProviders?.mfa ?? false;
+  const showMfaSection = mfaConfigEnabled || user?.totpEnabled;
+  const showSecurityTab = passkeysEnabled || showMfaSection;
+
+  const tabs = useMemo(() => [
+    { key: 'profile' as const, label: 'Profile' },
+    ...(showSecurityTab ? [{ key: 'security' as const, label: 'Security' }] : []),
+    { key: 'sessions' as const, label: 'Sessions' },
+    { key: 'billing' as const, label: 'Billing' },
+  ], [showSecurityTab]);
+
   const [tab, setTab] = useState<'profile' | 'security' | 'sessions' | 'billing'>('profile');
 
   return (

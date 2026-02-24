@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { CheckCircle, Shield, Fingerprint, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useBranding } from '../../../contexts/BrandingContext';
 import { authApi } from '../../../api/client';
 import { getErrorMessage } from '../../../utils/errors';
 import type { PasskeyCredential } from '../../../types';
@@ -11,6 +12,10 @@ import MFASetupModal from './MFASetupModal';
 
 export default function SecurityTab() {
   const { user, refreshUser } = useAuth();
+  const { branding } = useBranding();
+  const passkeysEnabled = branding?.authProviders?.passkeys ?? false;
+  const mfaConfigEnabled = branding?.authProviders?.mfa ?? false;
+  const showMfaSection = mfaConfigEnabled || user?.totpEnabled;
 
   // MFA state
   const [showMfaSetup, setShowMfaSetup] = useState(false);
@@ -92,6 +97,7 @@ export default function SecurityTab() {
   return (
     <div className="space-y-6 max-w-2xl">
       {/* MFA Section */}
+      {showMfaSection && (
       <div className="bg-dark-900/50 backdrop-blur-sm border border-dark-800 rounded-2xl p-6">
         <h2 className="text-lg font-semibold text-white flex items-center gap-2 mb-4">
           <Shield className="w-5 h-5 text-dark-400" />
@@ -153,8 +159,10 @@ export default function SecurityTab() {
           </div>
         )}
       </div>
+      )}
 
       {/* Passkeys Section */}
+      {passkeysEnabled && (
       <div className="bg-dark-900/50 backdrop-blur-sm border border-dark-800 rounded-2xl p-6">
         <h2 className="text-lg font-semibold text-white flex items-center gap-2 mb-4">
           <Fingerprint className="w-5 h-5 text-dark-400" />
@@ -203,6 +211,7 @@ export default function SecurityTab() {
           </>
         )}
       </div>
+      )}
 
       {/* MFA Setup Modal */}
       {showMfaSetup && (
