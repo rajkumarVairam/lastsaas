@@ -207,16 +207,21 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	h.syslog.High(r.Context(), fmt.Sprintf("User created: %s (%s) via registration", user.Email, user.ID.Hex()))
 
 	// Handle invitation or auto-create tenant
+	invitationAccepted := false
 	if req.InvitationToken != "" {
 		if err := h.acceptInvitationForUser(r.Context(), user.ID, req.InvitationToken); err != nil {
 			log.Printf("Failed to accept invitation during registration: %v", err)
+		} else {
+			invitationAccepted = true
 		}
 	} else {
 		h.createPersonalTenant(r.Context(), user.ID, user.DisplayName, now)
 	}
 
-	// Send verification email
-	h.sendVerificationEmail(r.Context(), user.ID, user.Email, user.DisplayName)
+	// Send verification email (skip if invitation already verified them)
+	if !invitationAccepted {
+		h.sendVerificationEmail(r.Context(), user.ID, user.Email, user.DisplayName)
+	}
 
 	// Generate tokens
 	accessToken, err := h.jwtService.GenerateAccessToken(user.ID.Hex(), user.Email, user.DisplayName)
@@ -1931,6 +1936,13 @@ func (h *AuthHandler) acceptInvitationForUser(ctx context.Context, userID primit
 	}
 	if _, err := h.db.TenantMemberships().InsertOne(ctx, membership); err != nil {
 		return fmt.Errorf("failed to create membership")
+	}
+
+	// Auto-verify email: the user proved ownership by receiving the invitation at this address.
+	if !acceptingUser.EmailVerified {
+		h.db.Users().UpdateOne(ctx, bson.M{"_id": userID}, bson.M{
+			"$set": bson.M{"emailVerified": true, "updatedAt": now},
+		})
 	}
 
 	h.events.Emit(events.Event{
