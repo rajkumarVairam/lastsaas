@@ -3,6 +3,7 @@ import { Settings, Search, Plus, Trash2, X, Shield, AlertTriangle } from 'lucide
 import { adminApi } from '../../api/client';
 import type { ConfigVar, ConfigVarType, EnumOption } from '../../types';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import { useTenant } from '../../contexts/TenantContext';
 
 const typeLabels: Record<ConfigVarType, string> = {
   string: 'String',
@@ -34,6 +35,9 @@ function serializeEnumOptions(opts: EnumOption[]): string {
 }
 
 export default function ConfigPage() {
+  const { role } = useTenant();
+  const canWrite = role === 'owner' || role === 'admin';
+
   const [configs, setConfigs] = useState<ConfigVar[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
@@ -93,13 +97,15 @@ export default function ConfigPage() {
           </h1>
           <p className="text-dark-400 mt-1">{configs.length} variables</p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white text-sm font-medium rounded-lg hover:bg-primary-600 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Add Variable
-        </button>
+        {canWrite && (
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white text-sm font-medium rounded-lg hover:bg-primary-600 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Add Variable
+          </button>
+        )}
       </div>
 
       {/* Search */}
@@ -158,7 +164,7 @@ export default function ConfigPage() {
                     {truncateValue(v.value)}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    {!v.isSystem && (
+                    {canWrite && !v.isSystem && (
                       <button
                         onClick={(e) => { e.stopPropagation(); setDeleteTarget(v); }}
                         className="p-1.5 text-dark-500 hover:text-red-400 transition-colors"
@@ -179,13 +185,14 @@ export default function ConfigPage() {
       {editVar && (
         <EditConfigModal
           configVar={editVar}
+          canWrite={canWrite}
           onSaved={() => { setEditVar(null); fetchConfigs(); }}
           onClose={() => setEditVar(null)}
         />
       )}
 
       {/* Create Modal */}
-      {showCreate && (
+      {canWrite && showCreate && (
         <CreateConfigModal
           onClose={() => setShowCreate(false)}
           onCreated={() => { setShowCreate(false); fetchConfigs(); }}
@@ -193,7 +200,7 @@ export default function ConfigPage() {
       )}
 
       {/* Delete Confirmation Modal */}
-      {deleteTarget && (
+      {canWrite && deleteTarget && (
         <DeleteConfirmModal
           name={deleteTarget.name}
           deleting={deleting}
@@ -317,9 +324,10 @@ function EnumOptionsEditor({
 /* ─── Edit Modal ─────────────────────────────────────────────────────── */
 
 function EditConfigModal({
-  configVar, onSaved, onClose,
+  configVar, canWrite, onSaved, onClose,
 }: {
   configVar: ConfigVar;
+  canWrite: boolean;
   onSaved: () => void;
   onClose: () => void;
 }) {
@@ -376,7 +384,8 @@ function EditConfigModal({
               value={editDescription}
               onChange={(e) => setEditDescription(e.target.value)}
               placeholder="What this variable controls"
-              className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white placeholder-dark-500 focus:outline-none focus:border-primary-500"
+              disabled={!canWrite}
+              className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 disabled:opacity-60 disabled:cursor-not-allowed"
             />
           </div>
         ) : configVar.description ? (
@@ -384,7 +393,7 @@ function EditConfigModal({
         ) : null}
 
         {/* Enum options editor for non-system enum vars */}
-        {isNonSystem && isEnum && (
+        {canWrite && isNonSystem && isEnum && (
           <div className="mb-4">
             <EnumOptionsEditor options={editEnumOptions} onChange={setEditEnumOptions} />
           </div>
@@ -399,7 +408,8 @@ function EditConfigModal({
             <select
               value={editValue}
               onChange={(e) => setEditValue(e.target.value)}
-              className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white focus:outline-none focus:border-primary-500"
+              disabled={!canWrite}
+              className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white focus:outline-none focus:border-primary-500 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {displayOptions.filter(o => o.value.trim()).map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label || opt.value}</option>
@@ -410,7 +420,8 @@ function EditConfigModal({
               value={editValue}
               onChange={(e) => setEditValue(e.target.value)}
               rows={16}
-              className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white font-mono focus:outline-none focus:border-primary-500 resize-y"
+              disabled={!canWrite}
+              className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white font-mono focus:outline-none focus:border-primary-500 resize-y disabled:opacity-60 disabled:cursor-not-allowed"
             />
           ) : configVar.type === 'numeric' ? (
             <input
@@ -418,14 +429,16 @@ function EditConfigModal({
               value={editValue}
               onChange={(e) => setEditValue(e.target.value)}
               step="any"
-              className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white focus:outline-none focus:border-primary-500"
+              disabled={!canWrite}
+              className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white focus:outline-none focus:border-primary-500 disabled:opacity-60 disabled:cursor-not-allowed"
             />
           ) : (
             <input
               type="text"
               value={editValue}
               onChange={(e) => setEditValue(e.target.value)}
-              className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white focus:outline-none focus:border-primary-500"
+              disabled={!canWrite}
+              className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white focus:outline-none focus:border-primary-500 disabled:opacity-60 disabled:cursor-not-allowed"
             />
           )}
         </div>
@@ -441,15 +454,17 @@ function EditConfigModal({
             onClick={onClose}
             className="px-4 py-2 bg-dark-800 border border-dark-700 text-dark-300 text-sm rounded-lg hover:text-white transition-colors"
           >
-            Cancel
+            {canWrite ? 'Cancel' : 'Close'}
           </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-4 py-2 bg-primary-500 text-white text-sm font-medium rounded-lg hover:bg-primary-600 disabled:opacity-50 transition-colors"
-          >
-            {saving ? 'Saving...' : 'Save'}
-          </button>
+          {canWrite && (
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="px-4 py-2 bg-primary-500 text-white text-sm font-medium rounded-lg hover:bg-primary-600 disabled:opacity-50 transition-colors"
+            >
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+          )}
         </div>
       </div>
     </div>

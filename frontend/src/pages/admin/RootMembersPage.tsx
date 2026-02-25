@@ -249,7 +249,7 @@ export default function RootMembersPage() {
                   <th className="text-left px-6 py-4 text-sm font-medium text-dark-400">Role</th>
                   <th className="text-left px-6 py-4 text-sm font-medium text-dark-400">Invited</th>
                   <th className="text-left px-6 py-4 text-sm font-medium text-dark-400">Expires</th>
-                  <th className="text-right px-6 py-4 text-sm font-medium text-dark-400">Actions</th>
+                  {canManage && <th className="text-right px-6 py-4 text-sm font-medium text-dark-400">Actions</th>}
                 </tr>
               </thead>
               <tbody>
@@ -263,6 +263,7 @@ export default function RootMembersPage() {
                     <td className="px-6 py-4 text-sm text-dark-400">
                       {new Date(inv.expiresAt).toLocaleDateString()}
                     </td>
+                    {canManage && (
                     <td className="px-6 py-4 text-right">
                       <button
                         onClick={() => setCancelInvitation(inv)}
@@ -272,6 +273,7 @@ export default function RootMembersPage() {
                         <X className="w-4 h-4" />
                       </button>
                     </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

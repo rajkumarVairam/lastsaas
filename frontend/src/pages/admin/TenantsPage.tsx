@@ -4,6 +4,7 @@ import { Building2, Shield, Zap, Search, ChevronLeft, ChevronRight, ArrowUpDown,
 import { toast } from 'sonner';
 import { adminApi } from '../../api/client';
 import { getErrorMessage } from '../../utils/errors';
+import { useTenant } from '../../contexts/TenantContext';
 import type { TenantListItem } from '../../types';
 import TableSkeleton from '../../components/TableSkeleton';
 import ConfirmModal from '../../components/ConfirmModal';
@@ -12,6 +13,8 @@ const PAGE_SIZE = 25;
 
 export default function TenantsPage() {
   const navigate = useNavigate();
+  const { role } = useTenant();
+  const canWrite = role === 'owner' || role === 'admin';
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [tenants, setTenants] = useState<TenantListItem[]>([]);
@@ -195,7 +198,7 @@ export default function TenantsPage() {
                       </button>
                     </th>
                     <th className="text-left px-6 py-3.5 text-sm font-medium text-dark-400">Status</th>
-                    <th className="text-right px-6 py-3.5 text-sm font-medium text-dark-400">Actions</th>
+                    {canWrite && <th className="text-right px-6 py-3.5 text-sm font-medium text-dark-400">Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -237,6 +240,7 @@ export default function TenantsPage() {
                           {tenant.isActive ? 'Active' : 'Disabled'}
                         </span>
                       </td>
+                      {canWrite && (
                       <td className="px-6 py-3.5 text-right">
                         {!tenant.isRoot && (
                           <button
@@ -251,6 +255,7 @@ export default function TenantsPage() {
                           </button>
                         )}
                       </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>

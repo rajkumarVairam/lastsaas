@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { adminApi, setAuthToken } from '../../api/client';
 import { getErrorMessage } from '../../utils/errors';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTenant } from '../../contexts/TenantContext';
 import type { UserListItem } from '../../types';
 import TableSkeleton from '../../components/TableSkeleton';
 import ConfirmModal from '../../components/ConfirmModal';
@@ -31,6 +32,9 @@ function relativeTime(dateStr?: string): string {
 export default function UsersPage() {
   const navigate = useNavigate();
   const { user: currentUser, refreshUser } = useAuth();
+  const { role } = useTenant();
+  const canWrite = role === 'owner' || role === 'admin';
+  const isOwner = role === 'owner';
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [users, setUsers] = useState<UserListItem[]>([]);
@@ -209,7 +213,7 @@ export default function UsersPage() {
                     </th>
                     <th className="text-left px-6 py-3.5 text-sm font-medium text-dark-400">Last Login</th>
                     <th className="text-left px-6 py-3.5 text-sm font-medium text-dark-400">Status</th>
-                    <th className="text-right px-6 py-3.5 text-sm font-medium text-dark-400">Actions</th>
+                    {canWrite && <th className="text-right px-6 py-3.5 text-sm font-medium text-dark-400">Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -246,9 +250,10 @@ export default function UsersPage() {
                           {user.isActive ? 'Active' : 'Disabled'}
                         </span>
                       </td>
+                      {canWrite && (
                       <td className="px-6 py-3.5 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          {currentUser && user.id !== currentUser.id && (
+                          {isOwner && currentUser && user.id !== currentUser.id && (
                             <button
                               onClick={(e) => { e.stopPropagation(); handleImpersonate(user.id); }}
                               className="text-xs px-3 py-1.5 rounded-lg border border-primary-500/30 text-primary-400 hover:bg-primary-500/10 transition-colors"
@@ -269,6 +274,7 @@ export default function UsersPage() {
                           </button>
                         </div>
                       </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>

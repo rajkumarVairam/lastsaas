@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Save, Building2, Zap, Users, CreditCard, XCircle, AlertTriangle } from 'lucide-react';
 import { adminApi } from '../../api/client';
+import { useTenant } from '../../contexts/TenantContext';
 import type { TenantDetail, TenantMember, Plan } from '../../types';
 import LoadingSpinner from '../../components/LoadingSpinner';
 
@@ -13,6 +14,9 @@ function formatPrice(cents: number): string {
 export default function TenantProfilePage() {
   const { tenantId } = useParams<{ tenantId: string }>();
   const navigate = useNavigate();
+  const { role } = useTenant();
+  const canWrite = role === 'owner' || role === 'admin';
+  const isOwner = role === 'owner';
 
   const [tenant, setTenant] = useState<TenantDetail | null>(null);
   const [members, setMembers] = useState<TenantMember[]>([]);
@@ -225,7 +229,8 @@ export default function TenantProfilePage() {
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white focus:outline-none focus:border-primary-500"
+              disabled={!canWrite}
+              className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white focus:outline-none focus:border-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
           <div>
@@ -235,18 +240,20 @@ export default function TenantProfilePage() {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-4 py-2 text-sm font-medium bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50 flex items-center gap-2"
-          >
-            <Save className="w-4 h-4" />
-            {saving ? 'Saving...' : 'Save Changes'}
-          </button>
-          {saveError && <span className="text-red-400 text-sm">{saveError}</span>}
-          {saveSuccess && <span className="text-green-400 text-sm">{saveSuccess}</span>}
-        </div>
+        {canWrite && (
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="px-4 py-2 text-sm font-medium bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50 flex items-center gap-2"
+            >
+              <Save className="w-4 h-4" />
+              {saving ? 'Saving...' : 'Save Changes'}
+            </button>
+            {saveError && <span className="text-red-400 text-sm">{saveError}</span>}
+            {saveSuccess && <span className="text-green-400 text-sm">{saveSuccess}</span>}
+          </div>
+        )}
       </div>
 
       {/* Plan & Billing */}
@@ -261,7 +268,8 @@ export default function TenantProfilePage() {
             <select
               value={selectedPlanId}
               onChange={(e) => setSelectedPlanId(e.target.value)}
-              className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white focus:outline-none focus:border-primary-500"
+              disabled={!isOwner}
+              className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white focus:outline-none focus:border-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <option value="">{systemPlan ? `${systemPlan.name} (Default)` : 'System Default'}</option>
               {plans.filter(p => !p.isSystem).map(p => (
@@ -276,7 +284,8 @@ export default function TenantProfilePage() {
             <label className="block text-sm text-dark-400 mb-1">Billing Waived</label>
             <button
               onClick={() => setBillingWaived(!billingWaived)}
-              className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
+              disabled={!isOwner}
+              className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                 billingWaived
                   ? 'bg-green-500/20 text-green-400 border-green-500/30'
                   : 'bg-dark-800 text-dark-400 border-dark-700'
@@ -316,18 +325,20 @@ export default function TenantProfilePage() {
           </div>
         )}
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleSavePlan}
-            disabled={savingPlan}
-            className="px-4 py-2 text-sm font-medium bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50 flex items-center gap-2"
-          >
-            <Save className="w-4 h-4" />
-            {savingPlan ? 'Saving...' : 'Save Plan'}
-          </button>
-          {planError && <span className="text-red-400 text-sm">{planError}</span>}
-          {planSuccess && <span className="text-green-400 text-sm">{planSuccess}</span>}
-        </div>
+        {isOwner && (
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleSavePlan}
+              disabled={savingPlan}
+              className="px-4 py-2 text-sm font-medium bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50 flex items-center gap-2"
+            >
+              <Save className="w-4 h-4" />
+              {savingPlan ? 'Saving...' : 'Save Plan'}
+            </button>
+            {planError && <span className="text-red-400 text-sm">{planError}</span>}
+            {planSuccess && <span className="text-green-400 text-sm">{planSuccess}</span>}
+          </div>
+        )}
       </div>
 
       {/* Usage Credits */}
@@ -348,7 +359,8 @@ export default function TenantProfilePage() {
               inputMode="numeric"
               value={subscriptionCredits}
               onChange={(e) => setSubscriptionCredits(parseInt(e.target.value) || 0)}
-              className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white focus:outline-none focus:border-primary-500"
+              disabled={!canWrite}
+              className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white focus:outline-none focus:border-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
           <div>
@@ -359,22 +371,25 @@ export default function TenantProfilePage() {
               inputMode="numeric"
               value={purchasedCredits}
               onChange={(e) => setPurchasedCredits(parseInt(e.target.value) || 0)}
-              className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white focus:outline-none focus:border-primary-500"
+              disabled={!canWrite}
+              className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white focus:outline-none focus:border-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleSaveCredits}
-            disabled={savingCredits}
-            className="px-4 py-2 text-sm font-medium bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50 flex items-center gap-2"
-          >
-            <Save className="w-4 h-4" />
-            {savingCredits ? 'Saving...' : 'Save Credits'}
-          </button>
-          {creditError && <span className="text-red-400 text-sm">{creditError}</span>}
-          {creditSuccess && <span className="text-green-400 text-sm">{creditSuccess}</span>}
-        </div>
+        {canWrite && (
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleSaveCredits}
+              disabled={savingCredits}
+              className="px-4 py-2 text-sm font-medium bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50 flex items-center gap-2"
+            >
+              <Save className="w-4 h-4" />
+              {savingCredits ? 'Saving...' : 'Save Credits'}
+            </button>
+            {creditError && <span className="text-red-400 text-sm">{creditError}</span>}
+            {creditSuccess && <span className="text-green-400 text-sm">{creditSuccess}</span>}
+          </div>
+        )}
       </div>
 
       {/* Account Status */}
@@ -386,7 +401,7 @@ export default function TenantProfilePage() {
           }`}>
             {tenant.isActive ? 'Active' : 'Disabled'}
           </span>
-          {!tenant.isRoot && (
+          {!tenant.isRoot && canWrite && (
             <button
               onClick={handleToggleStatus}
               className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors ${
@@ -448,7 +463,7 @@ export default function TenantProfilePage() {
               </div>
             )}
           </div>
-          {tenant.stripeSubscriptionId && tenant.billingStatus === 'active' && (
+          {isOwner && tenant.stripeSubscriptionId && tenant.billingStatus === 'active' && (
             <button
               onClick={() => setShowCancelModal(true)}
               className="inline-flex items-center gap-2 px-3 py-1.5 text-sm text-red-400 border border-red-500/30 rounded-lg hover:bg-red-500/10 transition-colors"

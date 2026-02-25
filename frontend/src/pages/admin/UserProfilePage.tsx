@@ -4,12 +4,16 @@ import { ArrowLeft, Save, Shield, Trash2, FileText, AlertTriangle, X, Zap } from
 import { adminApi } from '../../api/client';
 import type { UserDetail, UserMembershipDetail, DeletePreflightResponse } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTenant } from '../../contexts/TenantContext';
 import LoadingSpinner from '../../components/LoadingSpinner';
 
 export default function UserProfilePage() {
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
   const { user: currentUser } = useAuth();
+  const { role } = useTenant();
+  const canWrite = role === 'owner' || role === 'admin';
+  const isOwner = role === 'owner';
 
   const [user, setUser] = useState<UserDetail | null>(null);
   const [memberships, setMemberships] = useState<UserMembershipDetail[]>([]);
@@ -180,7 +184,8 @@ export default function UserProfilePage() {
               type="text"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white focus:outline-none focus:border-primary-500"
+              disabled={!canWrite}
+              className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white focus:outline-none focus:border-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
           <div>
@@ -189,7 +194,8 @@ export default function UserProfilePage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white focus:outline-none focus:border-primary-500"
+              disabled={!canWrite}
+              className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white focus:outline-none focus:border-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
         </div>
@@ -226,14 +232,16 @@ export default function UserProfilePage() {
           </div>
         )}
 
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white text-sm font-medium rounded-lg hover:bg-primary-600 disabled:opacity-50 transition-colors"
-        >
-          <Save className="w-4 h-4" />
-          {saving ? 'Saving...' : 'Save Changes'}
-        </button>
+        {canWrite && (
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white text-sm font-medium rounded-lg hover:bg-primary-600 disabled:opacity-50 transition-colors"
+          >
+            <Save className="w-4 h-4" />
+            {saving ? 'Saving...' : 'Save Changes'}
+          </button>
+        )}
       </div>
 
       {/* Status Section */}
@@ -245,16 +253,18 @@ export default function UserProfilePage() {
           }`}>
             {user.isActive ? 'Active' : 'Disabled'}
           </span>
-          <button
-            onClick={handleToggleStatus}
-            className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
-              user.isActive
-                ? 'border-red-500/30 text-red-400 hover:bg-red-500/10'
-                : 'border-accent-emerald/30 text-accent-emerald hover:bg-accent-emerald/10'
-            }`}
-          >
-            {user.isActive ? 'Disable Account' : 'Enable Account'}
-          </button>
+          {canWrite && (
+            <button
+              onClick={handleToggleStatus}
+              className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+                user.isActive
+                  ? 'border-red-500/30 text-red-400 hover:bg-red-500/10'
+                  : 'border-accent-emerald/30 text-accent-emerald hover:bg-accent-emerald/10'
+              }`}
+            >
+              {user.isActive ? 'Disable Account' : 'Enable Account'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -332,7 +342,7 @@ export default function UserProfilePage() {
           View User Logs
         </Link>
 
-        {!isSelf && (
+        {isOwner && !isSelf && (
           <div className="bg-red-500/5 border border-red-500/15 rounded-2xl p-6">
             <h2 className="text-lg font-semibold text-red-400 mb-2">Danger Zone</h2>
             <p className="text-dark-400 text-sm mb-4">
@@ -351,7 +361,7 @@ export default function UserProfilePage() {
       </div>
 
       {/* Delete Modal */}
-      {showDeleteModal && (
+      {isOwner && showDeleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowDeleteModal(false)} />
           <div className="relative bg-dark-900 border border-dark-700 rounded-2xl p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto">

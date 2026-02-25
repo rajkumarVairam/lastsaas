@@ -6,12 +6,16 @@ import { getErrorMessage } from '../../utils/errors';
 import type { Plan, EntitlementValue, EntitlementType, EntitlementKeyInfo, CreditBundle } from '../../types';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import ConfirmModal from '../../components/ConfirmModal';
+import { useTenant } from '../../contexts/TenantContext';
 
 function formatPrice(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
 export default function PlansPage() {
+  const { role } = useTenant();
+  const canWrite = role === 'owner' || role === 'admin';
+
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [editPlan, setEditPlan] = useState<Plan | null>(null);
@@ -124,13 +128,15 @@ export default function PlansPage() {
           </h1>
           <p className="text-dark-400 mt-1">{plans.length} plan{plans.length !== 1 ? 's' : ''}</p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white text-sm font-medium rounded-lg hover:bg-primary-600 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Add Plan
-        </button>
+        {canWrite && (
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white text-sm font-medium rounded-lg hover:bg-primary-600 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Add Plan
+          </button>
+        )}
       </div>
 
       {/* Plans Table */}
@@ -222,38 +228,40 @@ export default function PlansPage() {
                   )}
                 </td>
                 <td className="px-6 py-4 text-right">
-                  <div className="flex items-center justify-end gap-1">
-                    {!plan.isSystem && !plan.isArchived && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setArchiveTarget(plan); }}
-                        className="p-2 text-dark-400 hover:text-amber-400 transition-colors"
-                        title="Archive plan"
-                        aria-label="Archive plan"
-                      >
-                        <Archive className="w-4 h-4" />
-                      </button>
-                    )}
-                    {!plan.isSystem && plan.isArchived && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setArchiveTarget(plan); }}
-                        className="p-2 text-dark-400 hover:text-accent-emerald transition-colors"
-                        title="Unarchive plan"
-                        aria-label="Unarchive plan"
-                      >
-                        <RotateCcw className="w-4 h-4" />
-                      </button>
-                    )}
-                    {!plan.isSystem && (plan.subscriberCount ?? 0) === 0 && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setDeleteTarget(plan); }}
-                        className="p-2 text-dark-400 hover:text-red-400 transition-colors"
-                        title="Delete plan"
-                        aria-label="Delete plan"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
+                  {canWrite && (
+                    <div className="flex items-center justify-end gap-1">
+                      {!plan.isSystem && !plan.isArchived && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setArchiveTarget(plan); }}
+                          className="p-2 text-dark-400 hover:text-amber-400 transition-colors"
+                          title="Archive plan"
+                          aria-label="Archive plan"
+                        >
+                          <Archive className="w-4 h-4" />
+                        </button>
+                      )}
+                      {!plan.isSystem && plan.isArchived && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setArchiveTarget(plan); }}
+                          className="p-2 text-dark-400 hover:text-accent-emerald transition-colors"
+                          title="Unarchive plan"
+                          aria-label="Unarchive plan"
+                        >
+                          <RotateCcw className="w-4 h-4" />
+                        </button>
+                      )}
+                      {!plan.isSystem && (plan.subscriberCount ?? 0) === 0 && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setDeleteTarget(plan); }}
+                          className="p-2 text-dark-400 hover:text-red-400 transition-colors"
+                          title="Delete plan"
+                          aria-label="Delete plan"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </td>
               </tr>
             ))}
@@ -262,7 +270,7 @@ export default function PlansPage() {
       </div>
 
       {/* Create Modal */}
-      {showCreate && (
+      {canWrite && showCreate && (
         <PlanFormModal
           onClose={() => setShowCreate(false)}
           onSaved={() => { setShowCreate(false); fetchPlans(); }}
@@ -274,6 +282,7 @@ export default function PlansPage() {
         <PlanFormModal
           plan={editPlan}
           subscriberCount={editPlan.subscriberCount}
+          readOnly={!canWrite}
           onClose={() => setEditPlan(null)}
           onSaved={() => { setEditPlan(null); fetchPlans(); }}
         />
@@ -330,13 +339,15 @@ export default function PlansPage() {
               {bundles.length === 0 && ' — end users cannot purchase one-time credits'}
             </p>
           </div>
-          <button
-            onClick={() => setShowCreateBundle(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white text-sm font-medium rounded-lg hover:bg-primary-600 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Add Bundle
-          </button>
+          {canWrite && (
+            <button
+              onClick={() => setShowCreateBundle(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white text-sm font-medium rounded-lg hover:bg-primary-600 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Add Bundle
+            </button>
+          )}
         </div>
 
         {bundles.length > 0 && (
@@ -371,14 +382,16 @@ export default function PlansPage() {
                     </td>
                     <td className="px-6 py-4 text-dark-300 text-sm">{bundle.sortOrder}</td>
                     <td className="px-6 py-4 text-right">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setDeleteBundleTarget(bundle); }}
-                        className="p-2 text-dark-400 hover:text-red-400 transition-colors"
-                        title="Delete bundle"
-                        aria-label="Delete bundle"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {canWrite && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setDeleteBundleTarget(bundle); }}
+                          className="p-2 text-dark-400 hover:text-red-400 transition-colors"
+                          title="Delete bundle"
+                          aria-label="Delete bundle"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -389,7 +402,7 @@ export default function PlansPage() {
       </div>
 
       {/* Create Bundle Modal */}
-      {showCreateBundle && (
+      {canWrite && showCreateBundle && (
         <BundleFormModal
           onClose={() => setShowCreateBundle(false)}
           onSaved={() => { setShowCreateBundle(false); fetchBundles(); }}
@@ -400,6 +413,7 @@ export default function PlansPage() {
       {editBundle && (
         <BundleFormModal
           bundle={editBundle}
+          readOnly={!canWrite}
           onClose={() => setEditBundle(null)}
           onSaved={() => { setEditBundle(null); fetchBundles(); }}
         />
@@ -465,11 +479,12 @@ export default function PlansPage() {
 interface PlanFormModalProps {
   plan?: Plan;
   subscriberCount?: number;
+  readOnly?: boolean;
   onClose: () => void;
   onSaved: () => void;
 }
 
-function PlanFormModal({ plan, subscriberCount, onClose, onSaved }: PlanFormModalProps) {
+function PlanFormModal({ plan, subscriberCount, readOnly, onClose, onSaved }: PlanFormModalProps) {
   const isEdit = !!plan;
 
   const [name, setName] = useState(plan?.name ?? '');
@@ -602,7 +617,7 @@ function PlanFormModal({ plan, subscriberCount, onClose, onSaved }: PlanFormModa
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-dark-900 rounded-2xl border border-dark-700 p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-semibold text-white">{isEdit ? 'Edit Plan' : 'Create Plan'}</h3>
+          <h3 className="text-lg font-semibold text-white">{readOnly ? 'View Plan' : isEdit ? 'Edit Plan' : 'Create Plan'}</h3>
           <button onClick={onClose} className="p-2 text-dark-400 hover:text-white transition-colors">
             <X className="w-5 h-5" />
           </button>
@@ -627,7 +642,7 @@ function PlanFormModal({ plan, subscriberCount, onClose, onSaved }: PlanFormModa
                 <input
                   value={name}
                   onChange={e => setName(e.target.value)}
-                  disabled={isEdit && plan?.isSystem}
+                  disabled={readOnly || (isEdit && plan?.isSystem)}
                   className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none disabled:opacity-50"
                   placeholder="e.g. Pro"
                 />
@@ -637,7 +652,8 @@ function PlanFormModal({ plan, subscriberCount, onClose, onSaved }: PlanFormModa
                 <input
                   value={description}
                   onChange={e => setDescription(e.target.value)}
-                  className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none"
+                  disabled={readOnly}
+                  className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none disabled:opacity-50"
                   placeholder="Short description"
                 />
               </div>
@@ -657,7 +673,8 @@ function PlanFormModal({ plan, subscriberCount, onClose, onSaved }: PlanFormModa
                   onChange={e => setMonthlyPriceDollars(e.target.value)}
                   onFocus={e => e.target.select()}
                   onBlur={() => { const n = parseFloat(monthlyPriceDollars); setMonthlyPriceDollars(isNaN(n) ? '0.00' : n.toFixed(2)); }}
-                  className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none"
+                  disabled={readOnly}
+                  className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none disabled:opacity-50"
                 />
               </div>
               <div>
@@ -669,7 +686,8 @@ function PlanFormModal({ plan, subscriberCount, onClose, onSaved }: PlanFormModa
                   onChange={e => setAnnualDiscountPct(e.target.value)}
                   onFocus={e => e.target.select()}
                   onBlur={() => setAnnualDiscountPct(String(parseInt(annualDiscountPct) || 0))}
-                  className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none"
+                  disabled={readOnly}
+                  className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none disabled:opacity-50"
                 />
                 <p className="text-xs text-dark-500 mt-1">Set to 0 to hide annual option</p>
               </div>
@@ -682,7 +700,8 @@ function PlanFormModal({ plan, subscriberCount, onClose, onSaved }: PlanFormModa
                   onChange={e => setTrialDays(e.target.value)}
                   onFocus={e => e.target.select()}
                   onBlur={() => setTrialDays(String(parseInt(trialDays) || 0))}
-                  className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none"
+                  disabled={readOnly}
+                  className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none disabled:opacity-50"
                 />
                 <p className="text-xs text-dark-500 mt-1">0 = no trial</p>
               </div>
@@ -696,7 +715,8 @@ function PlanFormModal({ plan, subscriberCount, onClose, onSaved }: PlanFormModa
               <button
                 type="button"
                 onClick={() => setPricingModel('flat')}
-                className={`flex-1 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                disabled={readOnly}
+                className={`flex-1 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors disabled:opacity-50 ${
                   pricingModel === 'flat' ? 'bg-primary-500/20 border-primary-500/50 text-primary-400' : 'bg-dark-800 border-dark-700 text-dark-400 hover:text-white'
                 }`}
               >
@@ -705,7 +725,8 @@ function PlanFormModal({ plan, subscriberCount, onClose, onSaved }: PlanFormModa
               <button
                 type="button"
                 onClick={() => setPricingModel('per_seat')}
-                className={`flex-1 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                disabled={readOnly}
+                className={`flex-1 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors disabled:opacity-50 ${
                   pricingModel === 'per_seat' ? 'bg-primary-500/20 border-primary-500/50 text-primary-400' : 'bg-dark-800 border-dark-700 text-dark-400 hover:text-white'
                 }`}
               >
@@ -725,7 +746,8 @@ function PlanFormModal({ plan, subscriberCount, onClose, onSaved }: PlanFormModa
                       onChange={e => setPerSeatPriceDollars(e.target.value)}
                       onFocus={e => e.target.select()}
                       onBlur={() => { const n = parseFloat(perSeatPriceDollars); setPerSeatPriceDollars(isNaN(n) ? '0.00' : n.toFixed(2)); }}
-                      className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none"
+                      disabled={readOnly}
+                      className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none disabled:opacity-50"
                     />
                   </div>
                   <div>
@@ -737,7 +759,8 @@ function PlanFormModal({ plan, subscriberCount, onClose, onSaved }: PlanFormModa
                       onChange={e => setIncludedSeats(e.target.value)}
                       onFocus={e => e.target.select()}
                       onBlur={() => setIncludedSeats(String(parseInt(includedSeats) || 0))}
-                      className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none"
+                      disabled={readOnly}
+                      className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none disabled:opacity-50"
                     />
                     <p className="text-xs text-dark-500 mt-1">Seats included in base price (0 = purely per-seat)</p>
                   </div>
@@ -752,7 +775,8 @@ function PlanFormModal({ plan, subscriberCount, onClose, onSaved }: PlanFormModa
                       onChange={e => setMinSeats(e.target.value)}
                       onFocus={e => e.target.select()}
                       onBlur={() => setMinSeats(String(parseInt(minSeats) || 1))}
-                      className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none"
+                      disabled={readOnly}
+                      className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none disabled:opacity-50"
                     />
                   </div>
                   <div>
@@ -764,7 +788,8 @@ function PlanFormModal({ plan, subscriberCount, onClose, onSaved }: PlanFormModa
                       onChange={e => setMaxSeats(e.target.value)}
                       onFocus={e => e.target.select()}
                       onBlur={() => setMaxSeats(String(parseInt(maxSeats) || 0))}
-                      className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none"
+                      disabled={readOnly}
+                      className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none disabled:opacity-50"
                     />
                     <p className="text-xs text-dark-500 mt-1">0 = unlimited</p>
                   </div>
@@ -786,7 +811,8 @@ function PlanFormModal({ plan, subscriberCount, onClose, onSaved }: PlanFormModa
                   onChange={e => setUsageCreditsPerMonth(e.target.value)}
                   onFocus={e => e.target.select()}
                   onBlur={() => setUsageCreditsPerMonth(String(parseInt(usageCreditsPerMonth) || 0))}
-                  className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none"
+                  disabled={readOnly}
+                  className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none disabled:opacity-50"
                 />
               </div>
               {(parseInt(usageCreditsPerMonth) || 0) > 0 && (
@@ -795,7 +821,8 @@ function PlanFormModal({ plan, subscriberCount, onClose, onSaved }: PlanFormModa
                   <select
                     value={creditResetPolicy}
                     onChange={e => setCreditResetPolicy(e.target.value as 'reset' | 'accrue')}
-                    className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none"
+                    disabled={readOnly}
+                    className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none disabled:opacity-50"
                   >
                     <option value="reset">Reset each month</option>
                     <option value="accrue">Accrue (roll over)</option>
@@ -812,7 +839,8 @@ function PlanFormModal({ plan, subscriberCount, onClose, onSaved }: PlanFormModa
                 onChange={e => setBonusCredits(e.target.value)}
                 onFocus={e => e.target.select()}
                 onBlur={() => setBonusCredits(String(parseInt(bonusCredits) || 0))}
-                className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none"
+                disabled={readOnly}
+                className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none disabled:opacity-50"
               />
               <p className="text-xs text-dark-500 mt-1">Added once when plan is activated</p>
             </div>
@@ -830,7 +858,8 @@ function PlanFormModal({ plan, subscriberCount, onClose, onSaved }: PlanFormModa
                 onChange={e => setUserLimit(e.target.value)}
                 onFocus={e => e.target.select()}
                 onBlur={() => setUserLimit(String(parseInt(userLimit) || 0))}
-                className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none"
+                disabled={readOnly}
+                className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none disabled:opacity-50"
               />
               <p className="text-xs text-dark-500 mt-1">0 = unlimited</p>
             </div>
@@ -856,7 +885,8 @@ function PlanFormModal({ plan, subscriberCount, onClose, onSaved }: PlanFormModa
                         {isBool ? (
                           <button
                             onClick={() => updateEntitlementValue(key, { type: 'bool', boolValue: !(val?.boolValue ?? false), numericValue: 0, description: desc })}
-                            className={`w-10 h-6 rounded-full transition-colors relative ${val?.boolValue ? 'bg-primary-500' : 'bg-dark-600'}`}
+                            disabled={readOnly}
+                            className={`w-10 h-6 rounded-full transition-colors relative disabled:opacity-50 ${val?.boolValue ? 'bg-primary-500' : 'bg-dark-600'}`}
                           >
                             <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${val?.boolValue ? 'translate-x-4' : ''}`} />
                           </button>
@@ -871,21 +901,25 @@ function PlanFormModal({ plan, subscriberCount, onClose, onSaved }: PlanFormModa
                               updateEntitlementValue(key, { type: 'numeric', boolValue: false, numericValue: n, description: desc });
                             }}
                             onFocus={e => e.target.select()}
-                            className="w-24 px-2 py-1 bg-dark-700 border border-dark-600 rounded text-white text-sm focus:border-primary-500 focus:outline-none"
+                            disabled={readOnly}
+                            className="w-24 px-2 py-1 bg-dark-700 border border-dark-600 rounded text-white text-sm focus:border-primary-500 focus:outline-none disabled:opacity-50"
                           />
                         )}
-                        <button
-                          onClick={() => removeEntitlement(key)}
-                          className="p-1 text-dark-400 hover:text-red-400 transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {!readOnly && (
+                          <button
+                            onClick={() => removeEntitlement(key)}
+                            className="p-1 text-dark-400 hover:text-red-400 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                       <input
                         value={val?.description ?? desc}
                         onChange={e => updateEntitlementValue(key, { ...(val ?? { type: type as EntitlementType, boolValue: false, numericValue: 0, description: '' }), description: e.target.value })}
                         placeholder="Description (shown to end users)"
-                        className="w-full px-2 py-1 bg-dark-700/50 border border-dark-600/50 rounded text-dark-300 text-xs focus:border-primary-500 focus:outline-none"
+                        disabled={readOnly}
+                        className="w-full px-2 py-1 bg-dark-700/50 border border-dark-600/50 rounded text-dark-300 text-xs focus:border-primary-500 focus:outline-none disabled:opacity-50"
                       />
                     </div>
                   );
@@ -894,30 +928,32 @@ function PlanFormModal({ plan, subscriberCount, onClose, onSaved }: PlanFormModa
             )}
 
             {/* Add new entitlement */}
-            <div className="flex items-center gap-2">
-              <input
-                value={newKey}
-                onChange={e => setNewKey(e.target.value)}
-                placeholder="entitlement_name"
-                className="flex-1 px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm font-mono focus:border-primary-500 focus:outline-none"
-                onKeyDown={e => { if (e.key === 'Enter') addEntitlement(); }}
-              />
-              <select
-                value={newType}
-                onChange={e => setNewType(e.target.value as EntitlementType)}
-                className="px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none"
-              >
-                <option value="bool">Boolean</option>
-                <option value="numeric">Numeric</option>
-              </select>
-              <button
-                onClick={addEntitlement}
-                disabled={!newKey.trim()}
-                className="px-3 py-2 bg-dark-700 text-dark-300 text-sm rounded-lg hover:bg-dark-600 hover:text-white transition-colors disabled:opacity-30"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-            </div>
+            {!readOnly && (
+              <div className="flex items-center gap-2">
+                <input
+                  value={newKey}
+                  onChange={e => setNewKey(e.target.value)}
+                  placeholder="entitlement_name"
+                  className="flex-1 px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm font-mono focus:border-primary-500 focus:outline-none"
+                  onKeyDown={e => { if (e.key === 'Enter') addEntitlement(); }}
+                />
+                <select
+                  value={newType}
+                  onChange={e => setNewType(e.target.value as EntitlementType)}
+                  className="px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none"
+                >
+                  <option value="bool">Boolean</option>
+                  <option value="numeric">Numeric</option>
+                </select>
+                <button
+                  onClick={addEntitlement}
+                  disabled={!newKey.trim()}
+                  className="px-3 py-2 bg-dark-700 text-dark-300 text-sm rounded-lg hover:bg-dark-600 hover:text-white transition-colors disabled:opacity-30"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -934,15 +970,17 @@ function PlanFormModal({ plan, subscriberCount, onClose, onSaved }: PlanFormModa
             onClick={onClose}
             className="px-4 py-2 text-sm font-medium text-dark-300 hover:text-white transition-colors"
           >
-            Cancel
+            {readOnly ? 'Close' : 'Cancel'}
           </button>
-          <button
-            onClick={handleSave}
-            disabled={saving || !name.trim()}
-            className="px-4 py-2 text-sm font-medium bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50"
-          >
-            {saving ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Plan'}
-          </button>
+          {!readOnly && (
+            <button
+              onClick={handleSave}
+              disabled={saving || !name.trim()}
+              className="px-4 py-2 text-sm font-medium bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50"
+            >
+              {saving ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Plan'}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -953,11 +991,12 @@ function PlanFormModal({ plan, subscriberCount, onClose, onSaved }: PlanFormModa
 
 interface BundleFormModalProps {
   bundle?: CreditBundle;
+  readOnly?: boolean;
   onClose: () => void;
   onSaved: () => void;
 }
 
-function BundleFormModal({ bundle, onClose, onSaved }: BundleFormModalProps) {
+function BundleFormModal({ bundle, readOnly, onClose, onSaved }: BundleFormModalProps) {
   const isEdit = !!bundle;
 
   const [name, setName] = useState(bundle?.name ?? '');
@@ -1019,7 +1058,7 @@ function BundleFormModal({ bundle, onClose, onSaved }: BundleFormModalProps) {
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-dark-900 rounded-2xl border border-dark-700 p-6 w-full max-w-lg">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-semibold text-white">{isEdit ? 'Edit Credit Bundle' : 'Create Credit Bundle'}</h3>
+          <h3 className="text-lg font-semibold text-white">{readOnly ? 'View Credit Bundle' : isEdit ? 'Edit Credit Bundle' : 'Create Credit Bundle'}</h3>
           <button onClick={onClose} className="p-2 text-dark-400 hover:text-white transition-colors">
             <X className="w-5 h-5" />
           </button>
@@ -1031,7 +1070,8 @@ function BundleFormModal({ bundle, onClose, onSaved }: BundleFormModalProps) {
             <input
               value={name}
               onChange={e => setName(e.target.value)}
-              className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none"
+              disabled={readOnly}
+              className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none disabled:opacity-50"
               placeholder="e.g. Starter Pack"
             />
           </div>
@@ -1046,7 +1086,8 @@ function BundleFormModal({ bundle, onClose, onSaved }: BundleFormModalProps) {
                 onChange={e => setCredits(e.target.value)}
                 onFocus={e => e.target.select()}
                 onBlur={() => setCredits(String(parseInt(credits) || 0))}
-                className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none"
+                disabled={readOnly}
+                className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none disabled:opacity-50"
               />
             </div>
             <div>
@@ -1058,7 +1099,8 @@ function BundleFormModal({ bundle, onClose, onSaved }: BundleFormModalProps) {
                 onChange={e => setPriceDollars(e.target.value)}
                 onFocus={e => e.target.select()}
                 onBlur={() => { const n = parseFloat(priceDollars); setPriceDollars(isNaN(n) ? '0.00' : n.toFixed(2)); }}
-                className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none"
+                disabled={readOnly}
+                className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none disabled:opacity-50"
               />
             </div>
           </div>
@@ -1073,7 +1115,8 @@ function BundleFormModal({ bundle, onClose, onSaved }: BundleFormModalProps) {
                 onChange={e => setSortOrder(e.target.value)}
                 onFocus={e => e.target.select()}
                 onBlur={() => setSortOrder(String(parseInt(sortOrder) || 0))}
-                className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none"
+                disabled={readOnly}
+                className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:border-primary-500 focus:outline-none disabled:opacity-50"
               />
               <p className="text-xs text-dark-500 mt-1">Lower numbers display first</p>
             </div>
@@ -1081,7 +1124,8 @@ function BundleFormModal({ bundle, onClose, onSaved }: BundleFormModalProps) {
               <label className="block text-sm font-medium text-dark-300 mb-1">Active</label>
               <button
                 onClick={() => setIsActive(!isActive)}
-                className={`w-12 h-7 rounded-full transition-colors relative mt-1 ${isActive ? 'bg-primary-500' : 'bg-dark-600'}`}
+                disabled={readOnly}
+                className={`w-12 h-7 rounded-full transition-colors relative mt-1 disabled:opacity-50 ${isActive ? 'bg-primary-500' : 'bg-dark-600'}`}
               >
                 <span className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white transition-transform ${isActive ? 'translate-x-5' : ''}`} />
               </button>
@@ -1101,15 +1145,17 @@ function BundleFormModal({ bundle, onClose, onSaved }: BundleFormModalProps) {
             onClick={onClose}
             className="px-4 py-2 text-sm font-medium text-dark-300 hover:text-white transition-colors"
           >
-            Cancel
+            {readOnly ? 'Close' : 'Cancel'}
           </button>
-          <button
-            onClick={handleSave}
-            disabled={saving || !name.trim()}
-            className="px-4 py-2 text-sm font-medium bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50"
-          >
-            {saving ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Bundle'}
-          </button>
+          {!readOnly && (
+            <button
+              onClick={handleSave}
+              disabled={saving || !name.trim()}
+              className="px-4 py-2 text-sm font-medium bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50"
+            >
+              {saving ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Bundle'}
+            </button>
+          )}
         </div>
       </div>
     </div>

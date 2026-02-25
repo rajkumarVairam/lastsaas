@@ -9,6 +9,7 @@ import { adminApi } from '../../api/client';
 import type { APIKey, Webhook as WebhookType, WebhookDelivery, WebhookEventTypeInfo } from '../../types';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { getErrorMessage } from '../../utils/errors';
+import { useTenant } from '../../contexts/TenantContext';
 
 // ─── Helpers ─────────────────────────────────────────────
 
@@ -218,7 +219,7 @@ function RevealKeyModal({ rawKey, apiKey, onClose }: {
   );
 }
 
-function APIKeysSection() {
+function APIKeysSection({ canWrite }: { canWrite: boolean }) {
   const [keys, setKeys] = useState<APIKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -261,13 +262,15 @@ function APIKeysSection() {
           <h2 className="text-sm font-medium text-dark-400 uppercase tracking-wide">API Keys</h2>
           {!loading && <span className="text-xs text-dark-500">({keys.length})</span>}
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-500 hover:bg-primary-600 text-white text-xs font-medium rounded-lg transition-colors"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Create Key
-        </button>
+        {canWrite && (
+          <button
+            onClick={() => setShowCreate(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-500 hover:bg-primary-600 text-white text-xs font-medium rounded-lg transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Create Key
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -275,7 +278,7 @@ function APIKeysSection() {
       ) : keys.length === 0 ? (
         <div className="bg-dark-900/50 backdrop-blur-sm border border-dark-800 rounded-2xl p-8 text-center">
           <Key className="w-8 h-8 text-dark-600 mx-auto mb-3" />
-          <p className="text-dark-400 text-sm">No API keys yet. Create one to get started.</p>
+          <p className="text-dark-400 text-sm">{canWrite ? 'No API keys yet. Create one to get started.' : 'No API keys yet.'}</p>
         </div>
       ) : (
         <div className="bg-dark-900/50 backdrop-blur-sm border border-dark-800 rounded-2xl overflow-hidden">
@@ -310,13 +313,15 @@ function APIKeysSection() {
                   <td className="px-5 py-3 text-xs text-dark-400">{formatDate(k.createdAt)}</td>
                   <td className="px-5 py-3 text-xs text-dark-400">{k.lastUsedAt ? timeAgo(k.lastUsedAt) : 'Never'}</td>
                   <td className="px-5 py-3 text-right">
-                    <button
-                      onClick={() => setDeleteTarget(k)}
-                      className="p-1.5 text-dark-500 hover:text-red-400 transition-colors"
-                      title="Delete key"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {canWrite && (
+                      <button
+                        onClick={() => setDeleteTarget(k)}
+                        className="p-1.5 text-dark-500 hover:text-red-400 transition-colors"
+                        title="Delete key"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -636,10 +641,11 @@ function WebhookFormModal({ webhook, onClose, onSaved }: {
   );
 }
 
-function WebhookDetailModal({ webhookId, onClose, onRefresh }: {
+function WebhookDetailModal({ webhookId, onClose, onRefresh, canWrite }: {
   webhookId: string;
   onClose: () => void;
   onRefresh: () => void;
+  canWrite: boolean;
 }) {
   const [hook, setHook] = useState<WebhookType | null>(null);
   const [secret, setSecret] = useState('');
@@ -750,13 +756,15 @@ function WebhookDetailModal({ webhookId, onClose, onRefresh }: {
                   >
                     {secretRevealed ? 'Hide' : 'Reveal'}
                   </button>
-                  <button
-                    onClick={handleRegenerate}
-                    disabled={regenerating}
-                    className="text-xs text-dark-500 hover:text-dark-300 transition-colors disabled:opacity-50"
-                  >
-                    {regenerating ? 'Regenerating...' : 'Regenerate'}
-                  </button>
+                  {canWrite && (
+                    <button
+                      onClick={handleRegenerate}
+                      disabled={regenerating}
+                      className="text-xs text-dark-500 hover:text-dark-300 transition-colors disabled:opacity-50"
+                    >
+                      {regenerating ? 'Regenerating...' : 'Regenerate'}
+                    </button>
+                  )}
                 </div>
               </div>
               {secretRevealed ? (
@@ -795,23 +803,25 @@ function WebhookDetailModal({ webhookId, onClose, onRefresh }: {
           </div>
 
           {/* Actions */}
-          <div className="flex gap-2">
-            <button
-              onClick={() => setEditing(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-dark-800 hover:bg-dark-700 border border-dark-700 rounded-lg text-xs text-dark-300 transition-colors"
-            >
-              <Pencil className="w-3.5 h-3.5" />
-              Edit
-            </button>
-            <button
-              onClick={handleTest}
-              disabled={testing}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-500/10 hover:bg-primary-500/20 border border-primary-500/20 rounded-lg text-xs text-primary-400 transition-colors disabled:opacity-50"
-            >
-              <Play className="w-3.5 h-3.5" />
-              {testing ? 'Sending...' : 'Send Test'}
-            </button>
-          </div>
+          {canWrite && (
+            <div className="flex gap-2">
+              <button
+                onClick={() => setEditing(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-dark-800 hover:bg-dark-700 border border-dark-700 rounded-lg text-xs text-dark-300 transition-colors"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                Edit
+              </button>
+              <button
+                onClick={handleTest}
+                disabled={testing}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-500/10 hover:bg-primary-500/20 border border-primary-500/20 rounded-lg text-xs text-primary-400 transition-colors disabled:opacity-50"
+              >
+                <Play className="w-3.5 h-3.5" />
+                {testing ? 'Sending...' : 'Send Test'}
+              </button>
+            </div>
+          )}
 
           {/* Test result */}
           {testResult && (
@@ -887,7 +897,7 @@ function WebhookDetailModal({ webhookId, onClose, onRefresh }: {
   );
 }
 
-function WebhooksSection() {
+function WebhooksSection({ canWrite }: { canWrite: boolean }) {
   const [hooks, setHooks] = useState<WebhookType[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -931,13 +941,15 @@ function WebhooksSection() {
           <h2 className="text-sm font-medium text-dark-400 uppercase tracking-wide">Webhooks</h2>
           {!loading && <span className="text-xs text-dark-500">({hooks.length})</span>}
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-500 hover:bg-primary-600 text-white text-xs font-medium rounded-lg transition-colors"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Create Webhook
-        </button>
+        {canWrite && (
+          <button
+            onClick={() => setShowCreate(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-500 hover:bg-primary-600 text-white text-xs font-medium rounded-lg transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Create Webhook
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -945,7 +957,7 @@ function WebhooksSection() {
       ) : hooks.length === 0 ? (
         <div className="bg-dark-900/50 backdrop-blur-sm border border-dark-800 rounded-2xl p-8 text-center">
           <Webhook className="w-8 h-8 text-dark-600 mx-auto mb-3" />
-          <p className="text-dark-400 text-sm">No webhooks configured. Create one to receive event notifications.</p>
+          <p className="text-dark-400 text-sm">{canWrite ? 'No webhooks configured. Create one to receive event notifications.' : 'No webhooks configured.'}</p>
         </div>
       ) : (
         <div className="bg-dark-900/50 backdrop-blur-sm border border-dark-800 rounded-2xl overflow-hidden">
@@ -987,13 +999,15 @@ function WebhooksSection() {
                     </div>
                   </td>
                   <td className="px-5 py-3 text-right">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setDeleteTarget(h); }}
-                      className="p-1.5 text-dark-500 hover:text-red-400 transition-colors"
-                      title="Delete webhook"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {canWrite && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setDeleteTarget(h); }}
+                        className="p-1.5 text-dark-500 hover:text-red-400 transition-colors"
+                        title="Delete webhook"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -1026,6 +1040,7 @@ function WebhooksSection() {
           webhookId={detailId}
           onClose={() => setDetailId(null)}
           onRefresh={fetchHooks}
+          canWrite={canWrite}
         />
       )}
       {deleteTarget && (
@@ -1066,6 +1081,9 @@ function WebhooksSection() {
 // ─── Main Page ──────────────────────────────────────────
 
 export default function APIPage() {
+  const { role } = useTenant();
+  const canWrite = role === 'owner' || role === 'admin';
+
   return (
     <div>
       <div className="mb-8">
@@ -1077,8 +1095,8 @@ export default function APIPage() {
       </div>
 
       <DocsSection />
-      <APIKeysSection />
-      <WebhooksSection />
+      <APIKeysSection canWrite={canWrite} />
+      <WebhooksSection canWrite={canWrite} />
     </div>
   );
 }

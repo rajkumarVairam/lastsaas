@@ -3,6 +3,7 @@ import { Paintbrush, Upload, X, Check, Plus, Trash2, GripVertical, Eye, EyeOff, 
 import { toast } from 'sonner';
 import { brandingApi, brandingAdminApi } from '../../api/client';
 import { useBranding } from '../../contexts/BrandingContext';
+import { useTenant } from '../../contexts/TenantContext';
 import type { BrandingConfig, NavItem, MediaItem, CustomPage } from '../../types';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { getErrorMessage } from '../../utils/errors';
@@ -11,6 +12,8 @@ type Tab = 'identity' | 'theme' | 'content' | 'pages' | 'media';
 
 export default function BrandingPage() {
   const { reload } = useBranding();
+  const { role } = useTenant();
+  const isOwner = role === 'owner';
   const [tab, setTab] = useState<Tab>('identity');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -202,13 +205,15 @@ export default function BrandingPage() {
           </h1>
           <p className="text-dark-400 mt-1">Customize the look and feel of your app</p>
         </div>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 disabled:opacity-50 transition-colors text-sm font-medium"
-        >
-          {saved ? <><Check className="w-4 h-4" /> Saved</> : saving ? 'Saving...' : 'Save Changes'}
-        </button>
+        {isOwner && (
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 disabled:opacity-50 transition-colors text-sm font-medium"
+          >
+            {saved ? <><Check className="w-4 h-4" /> Saved</> : saving ? 'Saving...' : 'Save Changes'}
+          </button>
+        )}
       </div>
 
       {/* Tabs */}
@@ -232,16 +237,16 @@ export default function BrandingPage() {
         <div className="space-y-6">
           <Section title="App Identity">
             <Field label="App Name" description="Replaces 'LastSaaS' everywhere in the app">
-              <input value={config.appName} onChange={e => update('appName', e.target.value)} className={inputClass} placeholder="My App" />
+              <input value={config.appName} onChange={e => update('appName', e.target.value)} className={isOwner ? inputClass : disabledInputClass} disabled={!isOwner} placeholder="My App" />
             </Field>
             <Field label="Tagline">
-              <input value={config.tagline} onChange={e => update('tagline', e.target.value)} className={inputClass} placeholder="Your tagline here" />
+              <input value={config.tagline} onChange={e => update('tagline', e.target.value)} className={isOwner ? inputClass : disabledInputClass} disabled={!isOwner} placeholder="Your tagline here" />
             </Field>
           </Section>
 
           <Section title="Logo">
             <Field label="Logo Mode" description="How the logo is displayed in the header">
-              <select value={config.logoMode} onChange={e => update('logoMode', e.target.value)} className={inputClass}>
+              <select value={config.logoMode} onChange={e => update('logoMode', e.target.value)} className={isOwner ? inputClass : disabledInputClass} disabled={!isOwner}>
                 <option value="text">Text only (app name)</option>
                 <option value="image">Image only</option>
                 <option value="both">Image + text</option>
@@ -253,12 +258,14 @@ export default function BrandingPage() {
                 currentUrl={config.logoUrl}
                 onUpload={(f) => handleAssetUpload('logo', f)}
                 onDelete={() => handleAssetDelete('logo')}
+                isOwner={isOwner}
               />
               <AssetUploader
                 label="Favicon"
                 currentUrl={config.faviconUrl}
                 onUpload={(f) => handleAssetUpload('favicon', f)}
                 onDelete={() => handleAssetDelete('favicon')}
+                isOwner={isOwner}
               />
             </div>
           </Section>
@@ -266,16 +273,16 @@ export default function BrandingPage() {
           <Section title="Auth Pages">
             <div className="grid grid-cols-2 gap-4">
               <Field label="Login Heading">
-                <input value={config.loginHeading} onChange={e => update('loginHeading', e.target.value)} className={inputClass} placeholder="Welcome back" />
+                <input value={config.loginHeading} onChange={e => update('loginHeading', e.target.value)} className={isOwner ? inputClass : disabledInputClass} disabled={!isOwner} placeholder="Welcome back" />
               </Field>
               <Field label="Login Subtext">
-                <input value={config.loginSubtext} onChange={e => update('loginSubtext', e.target.value)} className={inputClass} placeholder="Sign in to your account" />
+                <input value={config.loginSubtext} onChange={e => update('loginSubtext', e.target.value)} className={isOwner ? inputClass : disabledInputClass} disabled={!isOwner} placeholder="Sign in to your account" />
               </Field>
               <Field label="Signup Heading">
-                <input value={config.signupHeading} onChange={e => update('signupHeading', e.target.value)} className={inputClass} placeholder="Create your account" />
+                <input value={config.signupHeading} onChange={e => update('signupHeading', e.target.value)} className={isOwner ? inputClass : disabledInputClass} disabled={!isOwner} placeholder="Create your account" />
               </Field>
               <Field label="Signup Subtext">
-                <input value={config.signupSubtext} onChange={e => update('signupSubtext', e.target.value)} className={inputClass} placeholder="Get started" />
+                <input value={config.signupSubtext} onChange={e => update('signupSubtext', e.target.value)} className={isOwner ? inputClass : disabledInputClass} disabled={!isOwner} placeholder="Get started" />
               </Field>
             </div>
           </Section>
@@ -287,18 +294,18 @@ export default function BrandingPage() {
         <div className="space-y-6">
           <Section title="Colors" description="Set your brand colors. The primary color generates a full shade palette automatically.">
             <div className="grid grid-cols-2 gap-4">
-              <ColorField label="Primary Color" value={config.primaryColor} onChange={v => update('primaryColor', v)} />
-              <ColorField label="Accent Color" value={config.accentColor} onChange={v => update('accentColor', v)} />
+              <ColorField label="Primary Color" value={config.primaryColor} onChange={v => update('primaryColor', v)} isOwner={isOwner} />
+              <ColorField label="Accent Color" value={config.accentColor} onChange={v => update('accentColor', v)} isOwner={isOwner} />
             </div>
           </Section>
 
           <Section title="Typography">
             <div className="grid grid-cols-2 gap-4">
               <Field label="Body Font Family" description="Google Fonts name (e.g., 'Inter', 'Roboto')">
-                <input value={config.fontFamily} onChange={e => update('fontFamily', e.target.value)} className={inputClass} placeholder="Inter" />
+                <input value={config.fontFamily} onChange={e => update('fontFamily', e.target.value)} className={isOwner ? inputClass : disabledInputClass} disabled={!isOwner} placeholder="Inter" />
               </Field>
               <Field label="Heading Font Family">
-                <input value={config.headingFont} onChange={e => update('headingFont', e.target.value)} className={inputClass} placeholder="Same as body" />
+                <input value={config.headingFont} onChange={e => update('headingFont', e.target.value)} className={isOwner ? inputClass : disabledInputClass} disabled={!isOwner} placeholder="Same as body" />
               </Field>
             </div>
           </Section>
@@ -307,7 +314,8 @@ export default function BrandingPage() {
             <textarea
               value={config.customCss}
               onChange={e => update('customCss', e.target.value)}
-              className={`${inputClass} font-mono text-xs h-40`}
+              className={`${isOwner ? inputClass : disabledInputClass} font-mono text-xs h-40`}
+              disabled={!isOwner}
               placeholder="/* Custom CSS */"
             />
           </Section>
@@ -316,7 +324,8 @@ export default function BrandingPage() {
             <textarea
               value={config.headHtml}
               onChange={e => update('headHtml', e.target.value)}
-              className={`${inputClass} font-mono text-xs h-32`}
+              className={`${isOwner ? inputClass : disabledInputClass} font-mono text-xs h-32`}
+              disabled={!isOwner}
               placeholder="<!-- Custom head HTML -->"
             />
           </Section>
@@ -329,7 +338,7 @@ export default function BrandingPage() {
           <Section title="Landing Page" description="Public page at / for unauthenticated visitors. When disabled, visitors are redirected to the login page.">
             <Field label="Enable Landing Page">
               <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={config.landingEnabled} onChange={e => update('landingEnabled', e.target.checked)} className="rounded" />
+                <input type="checkbox" checked={config.landingEnabled} onChange={e => update('landingEnabled', e.target.checked)} className="rounded" disabled={!isOwner} />
                 <span className="text-sm text-dark-300">Show landing page instead of redirecting to login</span>
               </label>
             </Field>
@@ -337,17 +346,18 @@ export default function BrandingPage() {
               <>
                 <div className="grid grid-cols-2 gap-4">
                   <Field label="Page Title (SEO)">
-                    <input value={config.landingTitle} onChange={e => update('landingTitle', e.target.value)} className={inputClass} placeholder="My App - Get Started" />
+                    <input value={config.landingTitle} onChange={e => update('landingTitle', e.target.value)} className={isOwner ? inputClass : disabledInputClass} disabled={!isOwner} placeholder="My App - Get Started" />
                   </Field>
                   <Field label="Meta Description (SEO)">
-                    <input value={config.landingMeta} onChange={e => update('landingMeta', e.target.value)} className={inputClass} placeholder="Description for search engines" />
+                    <input value={config.landingMeta} onChange={e => update('landingMeta', e.target.value)} className={isOwner ? inputClass : disabledInputClass} disabled={!isOwner} placeholder="Description for search engines" />
                   </Field>
                 </div>
                 <Field label="Landing Page HTML">
                   <textarea
                     value={config.landingHtml}
                     onChange={e => update('landingHtml', e.target.value)}
-                    className={`${inputClass} font-mono text-xs h-64`}
+                    className={`${isOwner ? inputClass : disabledInputClass} font-mono text-xs h-64`}
+                    disabled={!isOwner}
                     placeholder="<div>Your landing page HTML here...</div>"
                   />
                 </Field>
@@ -359,14 +369,15 @@ export default function BrandingPage() {
             <textarea
               value={config.dashboardHtml}
               onChange={e => update('dashboardHtml', e.target.value)}
-              className={`${inputClass} font-mono text-xs h-40`}
+              className={`${isOwner ? inputClass : disabledInputClass} font-mono text-xs h-40`}
+              disabled={!isOwner}
               placeholder="<div>Welcome message, announcements, etc.</div>"
             />
           </Section>
 
           <Section title="Open Graph" description="Default social sharing image.">
             <Field label="OG Image URL">
-              <input value={config.ogImageUrl} onChange={e => update('ogImageUrl', e.target.value)} className={inputClass} placeholder="https://..." />
+              <input value={config.ogImageUrl} onChange={e => update('ogImageUrl', e.target.value)} className={isOwner ? inputClass : disabledInputClass} disabled={!isOwner} placeholder="https://..." />
             </Field>
           </Section>
 
@@ -378,13 +389,14 @@ export default function BrandingPage() {
                   <input
                     value={item.label}
                     onChange={e => updateNavItem(i, 'label', e.target.value)}
-                    className="w-32 px-2 py-1 bg-dark-800 border border-dark-700 rounded text-sm text-white"
-                    disabled={item.isBuiltIn}
+                    className={`w-32 px-2 py-1 border rounded text-sm ${!isOwner || item.isBuiltIn ? 'bg-dark-800/50 border-dark-700/50 text-dark-400 cursor-not-allowed' : 'bg-dark-800 border-dark-700 text-white'}`}
+                    disabled={!isOwner || item.isBuiltIn}
                   />
                   <select
                     value={item.icon}
                     onChange={e => updateNavItem(i, 'icon', e.target.value)}
-                    className="w-40 px-2 py-1 bg-dark-800 border border-dark-700 rounded text-sm text-white"
+                    className={`w-40 px-2 py-1 border rounded text-sm ${!isOwner ? 'bg-dark-800/50 border-dark-700/50 text-dark-400 cursor-not-allowed' : 'bg-dark-800 border-dark-700 text-white'}`}
+                    disabled={!isOwner}
                   >
                     <option value="LayoutDashboard">Dashboard</option>
                     <option value="Users">Users</option>
@@ -405,21 +417,28 @@ export default function BrandingPage() {
                     <input
                       value={item.target}
                       onChange={e => updateNavItem(i, 'target', e.target.value)}
-                      className="flex-1 px-2 py-1 bg-dark-800 border border-dark-700 rounded text-sm text-white font-mono"
+                      className={`flex-1 px-2 py-1 border rounded text-sm font-mono ${!isOwner ? 'bg-dark-800/50 border-dark-700/50 text-dark-400 cursor-not-allowed' : 'bg-dark-800 border-dark-700 text-white'}`}
+                      disabled={!isOwner}
                       placeholder="/p/my-page"
                     />
                   )}
                   {item.isBuiltIn && (
                     <span className="flex-1 text-xs text-dark-500 font-mono">{item.target}</span>
                   )}
-                  <button
-                    onClick={() => updateNavItem(i, 'visible', !item.visible)}
-                    className={`p-1 rounded ${item.visible ? 'text-accent-emerald' : 'text-dark-600'}`}
-                    title={item.visible ? 'Visible' : 'Hidden'}
-                  >
-                    {item.visible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                  </button>
-                  {!item.isBuiltIn && (
+                  {isOwner ? (
+                    <button
+                      onClick={() => updateNavItem(i, 'visible', !item.visible)}
+                      className={`p-1 rounded ${item.visible ? 'text-accent-emerald' : 'text-dark-600'}`}
+                      title={item.visible ? 'Visible' : 'Hidden'}
+                    >
+                      {item.visible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                    </button>
+                  ) : (
+                    <span className={`p-1 ${item.visible ? 'text-accent-emerald' : 'text-dark-600'}`}>
+                      {item.visible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                    </span>
+                  )}
+                  {isOwner && !item.isBuiltIn && (
                     <button onClick={() => removeNavItem(i)} className="p-1 text-red-400 hover:text-red-300">
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -427,9 +446,11 @@ export default function BrandingPage() {
                 </div>
               ))}
             </div>
-            <button onClick={addNavItem} className="flex items-center gap-2 mt-3 text-sm text-primary-400 hover:text-primary-300 transition-colors">
-              <Plus className="w-4 h-4" /> Add Custom Nav Item
-            </button>
+            {isOwner && (
+              <button onClick={addNavItem} className="flex items-center gap-2 mt-3 text-sm text-primary-400 hover:text-primary-300 transition-colors">
+                <Plus className="w-4 h-4" /> Add Custom Nav Item
+              </button>
+            )}
           </Section>
         </div>
       )}
@@ -439,12 +460,14 @@ export default function BrandingPage() {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <p className="text-sm text-dark-400">Custom pages are served at /p/slug and can be linked from navigation.</p>
-            <button
-              onClick={() => setEditingPage({ title: '', slug: '', htmlBody: '', isPublished: false, sortOrder: pages.length })}
-              className="flex items-center gap-2 px-3 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors text-sm"
-            >
-              <Plus className="w-4 h-4" /> New Page
-            </button>
+            {isOwner && (
+              <button
+                onClick={() => setEditingPage({ title: '', slug: '', htmlBody: '', isPublished: false, sortOrder: pages.length })}
+                className="flex items-center gap-2 px-3 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors text-sm"
+              >
+                <Plus className="w-4 h-4" /> New Page
+              </button>
+            )}
           </div>
 
           {pagesLoading ? <LoadingSpinner size="lg" className="py-12" /> : (
@@ -458,7 +481,7 @@ export default function BrandingPage() {
                       <th className="text-left px-6 py-3 text-sm font-medium text-dark-400">Title</th>
                       <th className="text-left px-6 py-3 text-sm font-medium text-dark-400">Slug</th>
                       <th className="text-left px-6 py-3 text-sm font-medium text-dark-400">Status</th>
-                      <th className="text-right px-6 py-3 text-sm font-medium text-dark-400">Actions</th>
+                      {isOwner && <th className="text-right px-6 py-3 text-sm font-medium text-dark-400">Actions</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -473,16 +496,18 @@ export default function BrandingPage() {
                             {page.isPublished ? 'Published' : 'Draft'}
                           </span>
                         </td>
-                        <td className="px-6 py-3 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <button onClick={() => setEditingPage(page)} className="text-xs px-3 py-1.5 rounded-lg border border-dark-700 text-dark-300 hover:text-white transition-colors">
-                              Edit
-                            </button>
-                            <button onClick={() => handlePageDelete(page.id)} className="text-xs px-3 py-1.5 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors">
-                              Delete
-                            </button>
-                          </div>
-                        </td>
+                        {isOwner && (
+                          <td className="px-6 py-3 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <button onClick={() => setEditingPage(page)} className="text-xs px-3 py-1.5 rounded-lg border border-dark-700 text-dark-300 hover:text-white transition-colors">
+                                Edit
+                              </button>
+                              <button onClick={() => handlePageDelete(page.id)} className="text-xs px-3 py-1.5 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors">
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -492,7 +517,7 @@ export default function BrandingPage() {
           )}
 
           {/* Page Editor Modal */}
-          {editingPage && (
+          {isOwner && editingPage && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
               <div className="bg-dark-900 border border-dark-700 rounded-2xl p-6 max-w-2xl mx-4 w-full max-h-[90vh] overflow-y-auto">
                 <div className="flex items-center justify-between mb-4">
@@ -540,20 +565,22 @@ export default function BrandingPage() {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <p className="text-sm text-dark-400">Upload images and files to use in your landing page, custom pages, and dashboard content.</p>
-            <div className="flex items-center gap-2">
-              <input ref={mediaInputRef} type="file" accept="image/*,.pdf,.svg" className="hidden" onChange={e => {
-                const file = e.target.files?.[0];
-                if (file) handleMediaUpload(file);
-                e.target.value = '';
-              }} />
-              <button
-                onClick={() => mediaInputRef.current?.click()}
-                disabled={uploading}
-                className="flex items-center gap-2 px-3 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 disabled:opacity-50 transition-colors text-sm"
-              >
-                <Upload className="w-4 h-4" /> {uploading ? 'Uploading...' : 'Upload File'}
-              </button>
-            </div>
+            {isOwner && (
+              <div className="flex items-center gap-2">
+                <input ref={mediaInputRef} type="file" accept="image/*,.pdf,.svg" className="hidden" onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (file) handleMediaUpload(file);
+                  e.target.value = '';
+                }} />
+                <button
+                  onClick={() => mediaInputRef.current?.click()}
+                  disabled={uploading}
+                  className="flex items-center gap-2 px-3 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 disabled:opacity-50 transition-colors text-sm"
+                >
+                  <Upload className="w-4 h-4" /> {uploading ? 'Uploading...' : 'Upload File'}
+                </button>
+              </div>
+            )}
           </div>
 
           {mediaLoading ? <LoadingSpinner size="lg" className="py-12" /> : (
@@ -583,12 +610,14 @@ export default function BrandingPage() {
                       >
                         Copy URL
                       </button>
-                      <button
-                        onClick={() => handleMediaDelete(item.key)}
-                        className="text-xs text-red-400 hover:text-red-300"
-                      >
-                        Delete
-                      </button>
+                      {isOwner && (
+                        <button
+                          onClick={() => handleMediaDelete(item.key)}
+                          className="text-xs text-red-400 hover:text-red-300"
+                        >
+                          Delete
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -604,6 +633,7 @@ export default function BrandingPage() {
 // --- Sub-components ---
 
 const inputClass = 'w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 transition-colors text-sm';
+const disabledInputClass = 'w-full px-3 py-2 bg-dark-800/50 border border-dark-700/50 rounded-lg text-dark-400 placeholder-dark-500 cursor-not-allowed transition-colors text-sm';
 
 function Section({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
   return (
@@ -626,7 +656,7 @@ function Field({ label, description, children }: { label: string; description?: 
   );
 }
 
-function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function ColorField({ label, value, onChange, isOwner = true }: { label: string; value: string; onChange: (v: string) => void; isOwner?: boolean }) {
   return (
     <Field label={label}>
       <div className="flex items-center gap-2">
@@ -634,15 +664,17 @@ function ColorField({ label, value, onChange }: { label: string; value: string; 
           type="color"
           value={value || '#0ea5e9'}
           onChange={e => onChange(e.target.value)}
-          className="w-10 h-10 rounded-lg border border-dark-700 cursor-pointer bg-transparent"
+          className={`w-10 h-10 rounded-lg border border-dark-700 bg-transparent ${isOwner ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
+          disabled={!isOwner}
         />
         <input
           value={value}
           onChange={e => onChange(e.target.value)}
-          className={inputClass}
+          className={isOwner ? inputClass : disabledInputClass}
+          disabled={!isOwner}
           placeholder="#0ea5e9"
         />
-        {value && (
+        {isOwner && value && (
           <button onClick={() => onChange('')} className="text-dark-500 hover:text-dark-300">
             <X className="w-4 h-4" />
           </button>
@@ -652,11 +684,12 @@ function ColorField({ label, value, onChange }: { label: string; value: string; 
   );
 }
 
-function AssetUploader({ label, currentUrl, onUpload, onDelete }: {
+function AssetUploader({ label, currentUrl, onUpload, onDelete, isOwner = true }: {
   label: string;
   currentUrl: string;
   onUpload: (file: File) => void;
   onDelete: () => void;
+  isOwner?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -672,19 +705,21 @@ function AssetUploader({ label, currentUrl, onUpload, onDelete }: {
             <Upload className="w-5 h-5 text-dark-600" />
           </div>
         )}
-        <div className="flex flex-col gap-1">
-          <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={e => {
-            const file = e.target.files?.[0];
-            if (file) onUpload(file);
-            e.target.value = '';
-          }} />
-          <button onClick={() => inputRef.current?.click()} className="text-xs text-primary-400 hover:text-primary-300">
-            {currentUrl ? 'Replace' : 'Upload'}
-          </button>
-          {currentUrl && (
-            <button onClick={onDelete} className="text-xs text-red-400 hover:text-red-300">Remove</button>
-          )}
-        </div>
+        {isOwner && (
+          <div className="flex flex-col gap-1">
+            <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={e => {
+              const file = e.target.files?.[0];
+              if (file) onUpload(file);
+              e.target.value = '';
+            }} />
+            <button onClick={() => inputRef.current?.click()} className="text-xs text-primary-400 hover:text-primary-300">
+              {currentUrl ? 'Replace' : 'Upload'}
+            </button>
+            {currentUrl && (
+              <button onClick={onDelete} className="text-xs text-red-400 hover:text-red-300">Remove</button>
+            )}
+          </div>
+        )}
       </div>
     </Field>
   );

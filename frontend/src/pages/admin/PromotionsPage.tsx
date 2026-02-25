@@ -3,6 +3,7 @@ import { Tag, Plus, X, Ban, Calendar, Filter, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { adminApi } from '../../api/client';
 import { getErrorMessage } from '../../utils/errors';
+import { useTenant } from '../../contexts/TenantContext';
 import type { Promotion, EligibleProduct } from '../../types';
 import TableSkeleton from '../../components/TableSkeleton';
 import ConfirmModal from '../../components/ConfirmModal';
@@ -22,6 +23,9 @@ function uniqueProductNames(productIds: string[], nameMap: Record<string, string
 }
 
 export default function PromotionsPage() {
+  const { role } = useTenant();
+  const canWrite = role === 'owner' || role === 'admin';
+
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [productNames, setProductNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -81,13 +85,15 @@ export default function PromotionsPage() {
           </h1>
           <p className="text-dark-400 mt-1">Manage Stripe promotion codes and coupons</p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white text-sm font-medium rounded-lg hover:bg-primary-600 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Create Code
-        </button>
+        {canWrite && (
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white text-sm font-medium rounded-lg hover:bg-primary-600 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Create Code
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -109,15 +115,15 @@ export default function PromotionsPage() {
                     <th className="text-left px-6 py-3 text-xs font-medium text-dark-400 uppercase">Applies To</th>
                     <th className="text-right px-6 py-3 text-xs font-medium text-dark-400 uppercase">Redemptions</th>
                     <th className="text-left px-6 py-3 text-xs font-medium text-dark-400 uppercase">Expiry</th>
-                    <th className="text-right px-6 py-3 text-xs font-medium text-dark-400 uppercase">Actions</th>
+                    {canWrite && <th className="text-right px-6 py-3 text-xs font-medium text-dark-400 uppercase">Actions</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-dark-800/50">
                   {promotions.map(promo => (
                     <tr
                       key={promo.id}
-                      className="hover:bg-dark-800/20 cursor-pointer"
-                      onClick={() => setEditTarget(promo)}
+                      className={`hover:bg-dark-800/20${canWrite ? ' cursor-pointer' : ''}`}
+                      onClick={canWrite ? () => setEditTarget(promo) : undefined}
                     >
                       <td className="px-6 py-3 text-sm text-white font-mono font-medium">{promo.code}</td>
                       <td className="px-6 py-3 text-sm text-dark-300">
@@ -157,26 +163,28 @@ export default function PromotionsPage() {
                           <span className="text-dark-500 text-xs">Never</span>
                         )}
                       </td>
-                      <td className="px-6 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={e => { e.stopPropagation(); setEditTarget(promo); }}
-                            className="p-1.5 text-dark-400 hover:text-primary-400 transition-colors"
-                            aria-label="Edit promotion"
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                          {promo.active && (
+                      {canWrite && (
+                        <td className="px-6 py-3 text-right">
+                          <div className="flex items-center justify-end gap-1">
                             <button
-                              onClick={e => { e.stopPropagation(); setDeactivateTarget(promo); }}
-                              className="p-1.5 text-dark-400 hover:text-red-400 transition-colors"
-                              aria-label="Deactivate promotion"
+                              onClick={e => { e.stopPropagation(); setEditTarget(promo); }}
+                              className="p-1.5 text-dark-400 hover:text-primary-400 transition-colors"
+                              aria-label="Edit promotion"
                             >
-                              <Ban className="w-4 h-4" />
+                              <Pencil className="w-4 h-4" />
                             </button>
-                          )}
-                        </div>
-                      </td>
+                            {promo.active && (
+                              <button
+                                onClick={e => { e.stopPropagation(); setDeactivateTarget(promo); }}
+                                className="p-1.5 text-dark-400 hover:text-red-400 transition-colors"
+                                aria-label="Deactivate promotion"
+                              >
+                                <Ban className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -186,14 +194,14 @@ export default function PromotionsPage() {
         </div>
       )}
 
-      {showCreate && (
+      {canWrite && showCreate && (
         <CreatePromotionModal
           onClose={() => setShowCreate(false)}
           onCreated={() => { setShowCreate(false); fetchPromotions(); }}
         />
       )}
 
-      {editTarget && (
+      {canWrite && editTarget && (
         <EditPromotionModal
           promo={editTarget}
           productNames={productNames}
@@ -202,16 +210,18 @@ export default function PromotionsPage() {
         />
       )}
 
-      <ConfirmModal
-        open={deactivateTarget !== null}
-        onClose={() => setDeactivateTarget(null)}
-        onConfirm={handleDeactivate}
-        title="Deactivate Promotion"
-        message={`Are you sure you want to deactivate the promotion code "${deactivateTarget?.code}"? It will no longer be usable at checkout.`}
-        confirmLabel="Deactivate"
-        confirmVariant="danger"
-        loading={deactivating}
-      />
+      {canWrite && (
+        <ConfirmModal
+          open={deactivateTarget !== null}
+          onClose={() => setDeactivateTarget(null)}
+          onConfirm={handleDeactivate}
+          title="Deactivate Promotion"
+          message={`Are you sure you want to deactivate the promotion code "${deactivateTarget?.code}"? It will no longer be usable at checkout.`}
+          confirmLabel="Deactivate"
+          confirmVariant="danger"
+          loading={deactivating}
+        />
+      )}
     </div>
   );
 }

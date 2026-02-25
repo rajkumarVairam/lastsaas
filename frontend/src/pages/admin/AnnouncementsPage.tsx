@@ -6,8 +6,12 @@ import { getErrorMessage } from '../../utils/errors';
 import type { Announcement } from '../../types';
 import TableSkeleton from '../../components/TableSkeleton';
 import ConfirmModal from '../../components/ConfirmModal';
+import { useTenant } from '../../contexts/TenantContext';
 
 export default function AnnouncementsPage() {
+  const { role } = useTenant();
+  const canWrite = role === 'owner' || role === 'admin';
+
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -63,13 +67,15 @@ export default function AnnouncementsPage() {
           </h1>
           <p className="text-dark-400 mt-1">Manage changelog and announcements for users</p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white text-sm font-medium rounded-lg hover:bg-primary-600 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          New Announcement
-        </button>
+        {canWrite && (
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white text-sm font-medium rounded-lg hover:bg-primary-600 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            New Announcement
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -102,35 +108,37 @@ export default function AnnouncementsPage() {
                     {ann.publishedAt && ` · Published ${new Date(ann.publishedAt).toLocaleDateString()}`}
                   </p>
                 </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => togglePublish(ann)}
-                    className="p-2 text-dark-400 hover:text-white transition-colors"
-                    aria-label={ann.isPublished ? 'Unpublish' : 'Publish'}
-                  >
-                    {ann.isPublished ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                  <button
-                    onClick={() => setEditTarget(ann)}
-                    className="px-3 py-1.5 text-xs text-dark-300 hover:text-white bg-dark-800 rounded-lg transition-colors"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => setDeleteTarget(ann)}
-                    className="p-2 text-dark-400 hover:text-red-400 transition-colors"
-                    aria-label="Delete announcement"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+                {canWrite && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => togglePublish(ann)}
+                      className="p-2 text-dark-400 hover:text-white transition-colors"
+                      aria-label={ann.isPublished ? 'Unpublish' : 'Publish'}
+                    >
+                      {ann.isPublished ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                    <button
+                      onClick={() => setEditTarget(ann)}
+                      className="px-3 py-1.5 text-xs text-dark-300 hover:text-white bg-dark-800 rounded-lg transition-colors"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => setDeleteTarget(ann)}
+                      className="p-2 text-dark-400 hover:text-red-400 transition-colors"
+                      aria-label="Delete announcement"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {(showCreate || editTarget) && (
+      {canWrite && (showCreate || editTarget) && (
         <AnnouncementFormModal
           announcement={editTarget ?? undefined}
           onClose={() => { setShowCreate(false); setEditTarget(null); }}
@@ -138,16 +146,18 @@ export default function AnnouncementsPage() {
         />
       )}
 
-      <ConfirmModal
-        open={deleteTarget !== null}
-        onClose={() => setDeleteTarget(null)}
-        onConfirm={handleDelete}
-        title="Delete Announcement"
-        message={`Are you sure you want to delete "${deleteTarget?.title}"?`}
-        confirmLabel="Delete"
-        confirmVariant="danger"
-        loading={deleting}
-      />
+      {canWrite && (
+        <ConfirmModal
+          open={deleteTarget !== null}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={handleDelete}
+          title="Delete Announcement"
+          message={`Are you sure you want to delete "${deleteTarget?.title}"?`}
+          confirmLabel="Delete"
+          confirmVariant="danger"
+          loading={deleting}
+        />
+      )}
     </div>
   );
 }
