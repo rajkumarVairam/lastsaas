@@ -34,3 +34,8 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+# Build artifacts
+bundle/
+dist/
+*.mcpb
