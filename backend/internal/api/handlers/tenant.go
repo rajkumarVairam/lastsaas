@@ -197,23 +197,6 @@ func (h *TenantHandler) InviteMember(w http.ResponseWriter, r *http.Request) {
 	} else {
 		h.db.Plans().FindOne(r.Context(), bson.M{"isSystem": true}).Decode(&tenantPlan)
 	}
-	if tenantPlan.UserLimit > 0 {
-		memberCount, _ := h.db.TenantMemberships().CountDocuments(r.Context(), bson.M{"tenantId": tenant.ID})
-		pendingCount, _ := h.db.Invitations().CountDocuments(r.Context(), bson.M{
-			"tenantId":  tenant.ID,
-			"status":    models.InvitationPending,
-			"expiresAt": bson.M{"$gt": time.Now()},
-		})
-		if memberCount+pendingCount >= int64(tenantPlan.UserLimit) {
-			respondWithJSON(w, http.StatusForbidden, map[string]interface{}{
-				"error":     fmt.Sprintf("User limit reached. Your plan allows %d users.", tenantPlan.UserLimit),
-				"code":      "USER_LIMIT_REACHED",
-				"userLimit": tenantPlan.UserLimit,
-			})
-			return
-		}
-	}
-
 	now := time.Now()
 	token := generateRandomToken()
 	invitation := models.Invitation{
@@ -228,9 +211,35 @@ func (h *TenantHandler) InviteMember(w http.ResponseWriter, r *http.Request) {
 		CreatedAt: now,
 	}
 
-	if _, err := h.db.Invitations().InsertOne(r.Context(), invitation); err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to create invitation")
-		return
+	// Enforce plan user limit atomically: insert the invitation first, then check the count.
+	// If over limit, delete the invitation. This prevents concurrent requests from bypassing the limit.
+	if tenantPlan.UserLimit > 0 {
+		if _, err := h.db.Invitations().InsertOne(r.Context(), invitation); err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to create invitation")
+			return
+		}
+
+		memberCount, _ := h.db.TenantMemberships().CountDocuments(r.Context(), bson.M{"tenantId": tenant.ID})
+		pendingCount, _ := h.db.Invitations().CountDocuments(r.Context(), bson.M{
+			"tenantId":  tenant.ID,
+			"status":    models.InvitationPending,
+			"expiresAt": bson.M{"$gt": now},
+		})
+		if memberCount+pendingCount > int64(tenantPlan.UserLimit) {
+			// Over limit — roll back the invitation we just created
+			h.db.Invitations().DeleteOne(r.Context(), bson.M{"_id": invitation.ID})
+			respondWithJSON(w, http.StatusForbidden, map[string]interface{}{
+				"error":     fmt.Sprintf("User limit reached. Your plan allows %d users.", tenantPlan.UserLimit),
+				"code":      "USER_LIMIT_REACHED",
+				"userLimit": tenantPlan.UserLimit,
+			})
+			return
+		}
+	} else {
+		if _, err := h.db.Invitations().InsertOne(r.Context(), invitation); err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to create invitation")
+			return
+		}
 	}
 
 	// Auto-adjust seat quantity for per-seat plans

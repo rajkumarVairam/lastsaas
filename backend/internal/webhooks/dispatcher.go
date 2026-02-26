@@ -31,28 +31,35 @@ type retryJob struct {
 
 // Dispatcher listens for events and fires matching webhooks.
 type Dispatcher struct {
-	db      *db.MongoDB
-	client  *http.Client
-	retryQ  chan retryJob
-	stopCh  chan struct{}
-	stopped chan struct{}
+	db            *db.MongoDB
+	client        *http.Client
+	retryQ        chan retryJob
+	stopCh        chan struct{}
+	stopped       chan struct{}
+	encryptionKey []byte // AES-256 key for webhook secret encryption (nil = plaintext fallback)
 }
 
 const maxRetryWorkers = 5
 const retryQueueSize = 100
 
-func NewDispatcher(database *db.MongoDB) *Dispatcher {
+func NewDispatcher(database *db.MongoDB, encryptionKey []byte) *Dispatcher {
 	d := &Dispatcher{
 		db: database,
 		client: &http.Client{
 			Timeout: 10 * time.Second,
 		},
-		retryQ:  make(chan retryJob, retryQueueSize),
-		stopCh:  make(chan struct{}),
-		stopped: make(chan struct{}),
+		retryQ:        make(chan retryJob, retryQueueSize),
+		stopCh:        make(chan struct{}),
+		stopped:       make(chan struct{}),
+		encryptionKey: encryptionKey,
 	}
 	go d.retryWorker()
 	return d
+}
+
+// EncryptionKey returns the encryption key (nil if encryption is disabled).
+func (d *Dispatcher) EncryptionKey() []byte {
+	return d.encryptionKey
 }
 
 // Stop gracefully shuts down the retry worker.
@@ -213,8 +220,11 @@ func (d *Dispatcher) deliverWithRetry(ctx context.Context, hook models.Webhook, 
 
 	// Sign with HMAC-SHA256
 	if hook.Secret != "" {
-		sig := computeSignature(body, hook.Secret)
-		req.Header.Set("X-Webhook-Signature", sig)
+		secret := d.resolveSecret(hook.Secret)
+		if secret != "" {
+			sig := computeSignature(body, secret)
+			req.Header.Set("X-Webhook-Signature", sig)
+		}
 	}
 
 	start := time.Now()
@@ -269,6 +279,24 @@ func (d *Dispatcher) deliverWithRetry(ctx context.Context, hook models.Webhook, 
 	}
 }
 
+// resolveSecret decrypts an encrypted secret if an encryption key is configured,
+// otherwise returns the value as-is (plaintext fallback for migration).
+func (d *Dispatcher) resolveSecret(stored string) string {
+	if d.encryptionKey == nil || stored == "" {
+		return stored
+	}
+	plaintext, err := DecryptSecret(stored, d.encryptionKey)
+	if err != nil {
+		// Fallback: may be a legacy plaintext secret not yet migrated
+		if len(stored) > 0 && stored[0] != 0 {
+			return stored
+		}
+		log.Printf("webhooks: failed to decrypt secret: %v", err)
+		return ""
+	}
+	return plaintext
+}
+
 // computeSignature generates an HMAC-SHA256 hex digest.
 func computeSignature(payload []byte, secret string) string {
 	mac := hmac.New(sha256.New, []byte(secret))
@@ -315,8 +343,11 @@ func (d *Dispatcher) DeliverTest(ctx context.Context, hook models.Webhook) model
 	req.Header.Set("X-Webhook-Test", "true")
 
 	if hook.Secret != "" {
-		sig := computeSignature(body, hook.Secret)
-		req.Header.Set("X-Webhook-Signature", sig)
+		secret := d.resolveSecret(hook.Secret)
+		if secret != "" {
+			sig := computeSignature(body, secret)
+			req.Header.Set("X-Webhook-Signature", sig)
+		}
 	}
 
 	start := time.Now()

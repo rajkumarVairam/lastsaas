@@ -33,3 +33,6 @@ stripe:
   secret_key: ${STRIPE_SECRET_KEY}
   publishable_key: ${STRIPE_PUBLISHABLE_KEY}
   webhook_secret: ${STRIPE_WEBHOOK_SECRET}
+
+webhooks:
+  encryption_key: ${WEBHOOK_ENCRYPTION_KEY}

@@ -433,3 +433,7 @@ func (m *MongoDB) UsageEvents() *mongo.Collection {
 func (m *MongoDB) AuthCodes() *mongo.Collection {
 	return m.Database.Collection("auth_codes")
 }
+
+func (m *MongoDB) ImpersonationLogs() *mongo.Collection {
+	return m.Database.Collection("impersonation_logs")
+}

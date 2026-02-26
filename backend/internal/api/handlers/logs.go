@@ -222,10 +222,10 @@ func (h *LogHandler) ExportCSV(w http.ResponseWriter, r *http.Request) {
 			log.CreatedAt.Format(time.RFC3339),
 			string(log.Severity),
 			string(log.Category),
-			log.Message,
+			sanitizeCSVField(log.Message),
 			userID,
 			tenantID,
-			log.Action,
+			sanitizeCSVField(log.Action),
 		})
 	}
 	writer.Flush()

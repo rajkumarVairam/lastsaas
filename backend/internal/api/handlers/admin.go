@@ -382,12 +382,12 @@ func (h *AdminHandler) ExportTenantsCSV(w http.ResponseWriter, r *http.Request) 
 		totalCredits := t.SubscriptionCredits + t.PurchasedCredits
 		writer.Write([]string{
 			t.ID.Hex(),
-			t.Name,
-			t.Slug,
+			sanitizeCSVField(t.Name),
+			sanitizeCSVField(t.Slug),
 			strconv.FormatBool(t.IsRoot),
 			strconv.FormatBool(t.IsActive),
 			strconv.Itoa(memberCounts[t.ID.Hex()]),
-			pName,
+			sanitizeCSVField(pName),
 			string(t.BillingStatus),
 			strconv.FormatInt(totalCredits, 10),
 			t.CreatedAt.Format(time.RFC3339),
@@ -716,8 +716,8 @@ func (h *AdminHandler) ExportUsersCSV(w http.ResponseWriter, r *http.Request) {
 		}
 		writer.Write([]string{
 			u.ID.Hex(),
-			u.Email,
-			u.DisplayName,
+			sanitizeCSVField(u.Email),
+			sanitizeCSVField(u.DisplayName),
 			strconv.FormatBool(u.EmailVerified),
 			strconv.FormatBool(u.IsActive),
 			strconv.Itoa(tenantCounts[u.ID.Hex()]),
@@ -1469,6 +1469,17 @@ func (h *AdminHandler) ImpersonateUser(w http.ResponseWriter, r *http.Request) {
 		fmt.Sprintf("Admin %s (%s) started impersonating user %s (%s)",
 			actingUser.Email, actingUser.ID.Hex(), targetUser.Email, targetUser.ID.Hex()),
 		actingUser.ID)
+
+	// Persistent impersonation audit record
+	h.db.ImpersonationLogs().InsertOne(r.Context(), bson.M{
+		"adminId":     actingUser.ID,
+		"adminEmail":  actingUser.Email,
+		"targetId":    targetUser.ID,
+		"targetEmail": targetUser.Email,
+		"ipAddress":   middleware.GetClientIP(r),
+		"startedAt":   time.Now(),
+		"expiresAt":   time.Now().Add(5 * time.Minute),
+	})
 
 	// Get target user's memberships
 	cursor, err := h.db.TenantMemberships().Find(r.Context(), bson.M{"userId": targetUserID})

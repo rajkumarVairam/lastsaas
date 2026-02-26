@@ -189,7 +189,14 @@ func main() {
 		log.Println("Stripe billing not configured (missing secret key)")
 	}
 
-	webhookDispatcher := webhooks.NewDispatcher(database)
+	webhookEncKey, err := webhooks.ParseEncryptionKey(cfg.Webhooks.EncryptionKey)
+	if err != nil {
+		log.Fatalf("Invalid webhook encryption key: %v", err)
+	}
+	if webhookEncKey != nil {
+		log.Println("Webhook secret encryption enabled")
+	}
+	webhookDispatcher := webhooks.NewDispatcher(database, webhookEncKey)
 	defer webhookDispatcher.Stop()
 	var emitter events.Emitter = webhookDispatcher
 
@@ -355,7 +362,11 @@ func main() {
 		authHandler.ForgotPassword,
 	)).Methods("POST")
 
-	guarded.HandleFunc("/auth/reset-password", authHandler.ResetPassword).Methods("POST")
+	guarded.HandleFunc("/auth/reset-password", rateLimiter.RateLimitHandler(
+		middleware.ResetTokenVerifyLimit,
+		func(r *http.Request) string { return middleware.GetClientIP(r) },
+		authHandler.ResetPassword,
+	)).Methods("POST")
 
 	// OAuth code exchange (public — exchanges one-time code for tokens)
 	guarded.HandleFunc("/auth/exchange-code", authHandler.ExchangeCode).Methods("POST")
@@ -376,7 +387,11 @@ func main() {
 		func(r *http.Request) string { return middleware.GetClientIP(r) },
 		authHandler.MagicLinkRequest,
 	)).Methods("POST")
-	guarded.HandleFunc("/auth/magic-link/verify", authHandler.MagicLinkVerify).Methods("POST")
+	guarded.HandleFunc("/auth/magic-link/verify", rateLimiter.RateLimitHandler(
+		middleware.MagicLinkVerifyLimit,
+		func(r *http.Request) string { return middleware.GetClientIP(r) },
+		authHandler.MagicLinkVerify,
+	)).Methods("POST")
 
 	// Google OAuth routes
 	if googleOAuth != nil {

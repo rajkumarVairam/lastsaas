@@ -87,7 +87,7 @@ func (s *JWTService) GenerateImpersonationToken(userID, email, displayName, impe
 		DisplayName:    displayName,
 		ImpersonatedBy: impersonatedBy,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(15 * time.Minute)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(5 * time.Minute)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			NotBefore: jwt.NewNumericDate(time.Now()),
 		},

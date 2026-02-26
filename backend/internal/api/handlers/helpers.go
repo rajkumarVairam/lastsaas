@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"regexp"
+	"strings"
 )
 
 type ErrorResponse struct {
@@ -28,13 +29,24 @@ func generateRandomToken() string {
 	return base64.URLEncoding.EncodeToString(b)
 }
 
-var emailRegex = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
+var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9.!#$%&'*+/=?^_` + "`" + `{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$`)
 
 func isValidEmail(email string) bool {
+	if len(email) > 254 {
+		return false
+	}
 	return emailRegex.MatchString(email)
 }
 
 var regexMetaReplacer = regexp.MustCompile(`[.*+?^${}()|[\]\\]`)
+
+// sanitizeCSVField prevents CSV injection by prefixing formula-triggering characters with a single quote.
+func sanitizeCSVField(s string) string {
+	if len(s) > 0 && strings.ContainsRune("=+-@\t\r", rune(s[0])) {
+		return "'" + s
+	}
+	return s
+}
 
 // escapeRegexInput escapes special regex characters in user input for safe use in MongoDB $regex queries.
 func escapeRegexInput(s string) string {

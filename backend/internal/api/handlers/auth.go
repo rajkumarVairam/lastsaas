@@ -390,16 +390,18 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// Revoke refresh token if provided
+	// Revoke refresh token if provided (scoped to the authenticated user)
 	var req struct {
 		RefreshToken string `json:"refreshToken"`
 	}
 	if json.NewDecoder(r.Body).Decode(&req) == nil && req.RefreshToken != "" {
-		tokenHash := hashToken(req.RefreshToken)
-		h.db.RefreshTokens().UpdateMany(r.Context(),
-			bson.M{"tokenHash": tokenHash},
-			bson.M{"$set": bson.M{"isRevoked": true}},
-		)
+		if user, ok := middleware.GetUserFromContext(r.Context()); ok {
+			tokenHash := hashToken(req.RefreshToken)
+			h.db.RefreshTokens().UpdateMany(r.Context(),
+				bson.M{"tokenHash": tokenHash, "userId": user.ID},
+				bson.M{"$set": bson.M{"isRevoked": true}},
+			)
+		}
 	}
 
 	if user, ok := middleware.GetUserFromContext(r.Context()); ok {
@@ -563,7 +565,7 @@ func (h *AuthHandler) ResendVerification(w http.ResponseWriter, r *http.Request)
 	}
 
 	if user.EmailVerified {
-		respondWithJSON(w, http.StatusOK, map[string]string{"message": "Email is already verified"})
+		respondWithJSON(w, http.StatusOK, map[string]string{"message": "If the email exists, a verification link has been sent"})
 		return
 	}
 
@@ -607,7 +609,7 @@ func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 		UserID:    user.ID,
 		Token:     resetToken,
 		Type:      models.TokenTypePasswordReset,
-		ExpiresAt: time.Now().Add(1 * time.Hour),
+		ExpiresAt: time.Now().Add(30 * time.Minute),
 		CreatedAt: time.Now(),
 	}
 	h.db.VerificationTokens().InsertOne(r.Context(), verification)
@@ -1805,13 +1807,14 @@ func (h *AuthHandler) AcceptInvitation(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) createPersonalTenant(ctx context.Context, userID primitive.ObjectID, displayName string, now time.Time) {
 	slug := fmt.Sprintf("tenant-%s", primitive.NewObjectID().Hex()[:8])
 	tenant := models.Tenant{
-		ID:        primitive.NewObjectID(),
-		Name:      displayName + "'s Team",
-		Slug:      slug,
-		IsRoot:    false,
-		IsActive:  true,
-		CreatedAt: now,
-		UpdatedAt: now,
+		ID:            primitive.NewObjectID(),
+		Name:          displayName + "'s Team",
+		Slug:          slug,
+		IsRoot:        false,
+		IsActive:      true,
+		BillingStatus: models.BillingStatusNone,
+		CreatedAt:     now,
+		UpdatedAt:     now,
 	}
 	if _, err := h.db.Tenants().InsertOne(ctx, tenant); err != nil {
 		log.Printf("Failed to create personal tenant for user %s: %v", userID.Hex(), err)
@@ -1897,31 +1900,37 @@ func (h *AuthHandler) getUserMemberships(ctx context.Context, userID primitive.O
 func (h *AuthHandler) acceptInvitationForUser(ctx context.Context, userID primitive.ObjectID, token string) error {
 	now := time.Now()
 
+	// Look up invitation first (without modifying it) so we can validate email before claiming it
 	var invitation models.Invitation
-	err := h.db.Invitations().FindOneAndUpdate(
-		ctx,
-		bson.M{
-			"token":     token,
-			"status":    models.InvitationPending,
-			"expiresAt": bson.M{"$gt": now},
-		},
-		bson.M{"$set": bson.M{"status": models.InvitationAccepted}},
-	).Decode(&invitation)
+	err := h.db.Invitations().FindOne(ctx, bson.M{
+		"token":     token,
+		"status":    models.InvitationPending,
+		"expiresAt": bson.M{"$gt": now},
+	}).Decode(&invitation)
 	if err != nil {
 		return fmt.Errorf("invalid or expired invitation")
 	}
 
-	// Verify the accepting user's email matches the invitation
+	// Verify the accepting user's email matches the invitation BEFORE claiming it
 	var acceptingUser models.User
 	if err := h.db.Users().FindOne(ctx, bson.M{"_id": userID}).Decode(&acceptingUser); err != nil {
 		return fmt.Errorf("user not found")
 	}
 	if !strings.EqualFold(acceptingUser.Email, invitation.Email) {
-		// Revert invitation status since FindOneAndUpdate already marked it accepted
-		h.db.Invitations().UpdateOne(ctx, bson.M{"_id": invitation.ID}, bson.M{
-			"$set": bson.M{"status": models.InvitationPending},
-		})
 		return fmt.Errorf("invitation was sent to a different email address")
+	}
+
+	// Atomically claim the invitation — prevents race conditions with concurrent acceptance
+	res := h.db.Invitations().FindOneAndUpdate(
+		ctx,
+		bson.M{
+			"_id":    invitation.ID,
+			"status": models.InvitationPending,
+		},
+		bson.M{"$set": bson.M{"status": models.InvitationAccepted}},
+	)
+	if res.Err() != nil {
+		return fmt.Errorf("invitation already accepted")
 	}
 
 	count, _ := h.db.TenantMemberships().CountDocuments(ctx, bson.M{

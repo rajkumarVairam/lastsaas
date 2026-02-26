@@ -92,9 +92,12 @@ func (h *BillingHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Prevent trial abuse: skip trial if this tenant already used one
+		// Prevent trial abuse: skip trial if this tenant or user already used one
 		trialDays := plan.TrialDays
 		if tenant.TrialUsedAt != nil {
+			trialDays = 0
+		}
+		if trialDays > 0 && user.TrialUsedAt != nil {
 			trialDays = 0
 		}
 

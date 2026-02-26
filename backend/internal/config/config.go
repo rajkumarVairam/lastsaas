@@ -21,6 +21,11 @@ type Config struct {
 	App         AppConfig        `yaml:"app"`
 	Stripe      StripeConfig     `yaml:"stripe"`
 	WebAuthn    WebAuthnConfig   `yaml:"webauthn"`
+	Webhooks    WebhooksConfig   `yaml:"webhooks"`
+}
+
+type WebhooksConfig struct {
+	EncryptionKey string `yaml:"encryption_key"` // 64-char hex string for AES-256-GCM
 }
 
 type ServerConfig struct {

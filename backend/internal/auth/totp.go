@@ -38,7 +38,7 @@ func (s *TOTPService) GenerateRecoveryCodes(count int) ([]string, []string, erro
 	plain := make([]string, count)
 	hashed := make([]string, count)
 	for i := 0; i < count; i++ {
-		b := make([]byte, 5)
+		b := make([]byte, 16)
 		if _, err := rand.Read(b); err != nil {
 			return nil, nil, fmt.Errorf("failed to generate recovery code: %w", err)
 		}

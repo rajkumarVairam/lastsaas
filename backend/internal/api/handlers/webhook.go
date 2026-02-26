@@ -21,6 +21,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	mongoDB "go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 
 	stripe "github.com/stripe/stripe-go/v82"
 )
@@ -61,16 +62,27 @@ func (h *WebhookHandler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	// Idempotency check
-	_, err = h.db.WebhookEvents().InsertOne(ctx, bson.M{
-		"eventId":   event.ID,
-		"type":      string(event.Type),
-		"createdAt": time.Now(),
-	})
-	if err != nil {
-		// Duplicate — already processed
+	// Atomic idempotency check: upsert with $setOnInsert so only the first
+	// request creates the record. If the document already existed, it's a duplicate.
+	idempResult := h.db.WebhookEvents().FindOneAndUpdate(ctx,
+		bson.M{"eventId": event.ID},
+		bson.M{"$setOnInsert": bson.M{
+			"eventId":   event.ID,
+			"type":      string(event.Type),
+			"status":    "processing",
+			"createdAt": time.Now(),
+		}},
+		options.FindOneAndUpdate().SetUpsert(true).SetReturnDocument(options.Before),
+	)
+	if idempResult.Err() == nil {
+		// Document existed before our upsert — duplicate event
 		log.Printf("Webhook: duplicate event %s, skipping", event.ID)
 		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if idempResult.Err() != mongoDB.ErrNoDocuments {
+		log.Printf("Webhook: idempotency check failed for event %s: %v", event.ID, idempResult.Err())
+		http.Error(w, "idempotency check failed", http.StatusInternalServerError)
 		return
 	}
 
@@ -118,6 +130,11 @@ func (h *WebhookHandler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Mark as completed
+	h.db.WebhookEvents().UpdateOne(ctx, bson.M{"eventId": event.ID}, bson.M{
+		"$set": bson.M{"status": "completed"},
+	})
+
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -133,6 +150,20 @@ func (h *WebhookHandler) handleCheckoutCompleted(ctx context.Context, event stri
 	if tenantID.IsZero() || userID.IsZero() {
 		log.Printf("Webhook: missing tenantId or userId in session metadata")
 		return fmt.Errorf("missing tenantId or userId in session metadata")
+	}
+
+	// Cross-reference: verify Stripe customer matches the tenant to prevent metadata manipulation
+	if session.Customer != nil && session.Customer.ID != "" {
+		var checkTenant models.Tenant
+		if err := h.db.Tenants().FindOne(ctx, bson.M{"_id": tenantID}).Decode(&checkTenant); err != nil {
+			log.Printf("Webhook: tenant not found for ID %s", tenantID.Hex())
+			return fmt.Errorf("tenant not found for checkout: %w", err)
+		}
+		if checkTenant.StripeCustomerID != "" && checkTenant.StripeCustomerID != session.Customer.ID {
+			h.syslog.Critical(ctx, fmt.Sprintf("SECURITY: Checkout customer mismatch — session customer %s != tenant %s customer %s",
+				session.Customer.ID, tenantID.Hex(), checkTenant.StripeCustomerID))
+			return fmt.Errorf("customer ID mismatch: session=%s tenant=%s", session.Customer.ID, checkTenant.StripeCustomerID)
+		}
 	}
 
 	planIDStr := session.Metadata["planId"]
@@ -172,10 +203,14 @@ func (h *WebhookHandler) handleCheckoutCompleted(ctx context.Context, event stri
 		if periodEnd != nil {
 			updates["currentPeriodEnd"] = periodEnd
 		}
-		// Mark trial as used so tenant can't get another free trial
+		// Mark trial as used so tenant (and user) can't get another free trial
 		if session.Subscription != nil && session.Subscription.TrialEnd > 0 {
 			now := time.Now()
 			updates["trialUsedAt"] = &now
+			// Also mark user-level trial usage to prevent multi-tenant trial abuse
+			h.db.Users().UpdateOne(ctx, bson.M{"_id": userID}, bson.M{
+				"$set": bson.M{"trialUsedAt": &now},
+			})
 		}
 		// Store seat quantity for per-seat plans
 		if seatQtyStr := session.Metadata["seatQuantity"]; seatQtyStr != "" {
@@ -792,5 +827,3 @@ func extractInstanceFromEvent(event stripe.Event) (string, bool) {
 	return "", false
 }
 
-// Ensure unused imports are used
-var _ = mongoDB.ErrNoDocuments

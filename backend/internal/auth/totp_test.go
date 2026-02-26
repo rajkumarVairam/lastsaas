@@ -132,8 +132,8 @@ func TestGenerateRecoveryCodes_Format(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, code := range plain {
-		if len(code) != 8 {
-			t.Errorf("expected 8-char code, got %d chars: %s", len(code), code)
+		if len(code) != 26 {
+			t.Errorf("expected 26-char code, got %d chars: %s", len(code), code)
 		}
 		// Should be uppercase base32
 		if strings.ToUpper(code) != code {

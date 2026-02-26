@@ -232,13 +232,22 @@ func (h *WebhooksHandler) CreateWebhook(w http.ResponseWriter, r *http.Request) 
 
 	// Auto-generate signing secret
 	rawSecret := "whsec_" + generateRandomToken()
+	storedSecret := rawSecret
+	if encKey := h.dispatcher.EncryptionKey(); encKey != nil {
+		encrypted, err := webhooks.EncryptSecret(rawSecret, encKey)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to secure webhook secret")
+			return
+		}
+		storedSecret = encrypted
+	}
 
 	now := time.Now()
 	hook := models.Webhook{
 		Name:          req.Name,
 		Description:   req.Description,
 		URL:           req.URL,
-		Secret:        rawSecret,
+		Secret:        storedSecret,
 		SecretPreview: rawSecret[len(rawSecret)-8:],
 		Events:        evts,
 		IsActive:      true,
@@ -344,10 +353,19 @@ func (h *WebhooksHandler) RegenerateSecret(w http.ResponseWriter, r *http.Reques
 
 	rawSecret := "whsec_" + generateRandomToken()
 	preview := rawSecret[len(rawSecret)-8:]
+	storedSecret := rawSecret
+	if encKey := h.dispatcher.EncryptionKey(); encKey != nil {
+		encrypted, err := webhooks.EncryptSecret(rawSecret, encKey)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to secure webhook secret")
+			return
+		}
+		storedSecret = encrypted
+	}
 
 	result, err := h.db.Webhooks().UpdateByID(r.Context(), whID, bson.M{
 		"$set": bson.M{
-			"secret":        rawSecret,
+			"secret":        storedSecret,
 			"secretPreview": preview,
 			"updatedAt":     time.Now(),
 		},

@@ -104,8 +104,8 @@ func RequireActiveBilling() func(http.Handler) http.Handler {
 				return
 			}
 
-			// Allow if billing status is active or empty (free plans have no billing status)
-			if tenant.BillingStatus == models.BillingStatusActive || tenant.BillingStatus == "" || tenant.BillingStatus == models.BillingStatusNone {
+			// Allow if billing status is active or none (free/unsubscribed tenants)
+			if tenant.BillingStatus == models.BillingStatusActive || tenant.BillingStatus == models.BillingStatusNone {
 				next.ServeHTTP(w, r)
 				return
 			}
