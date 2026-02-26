@@ -24,9 +24,10 @@ builds:
 
 archives:
   - id: lastsaas
-    builds:
+    formats:
+      - tar.gz
+    ids:
       - lastsaas
-    format: tar.gz
     name_template: "lastsaas_{{ .Os }}_{{ .Arch }}"
 
 checksum:
