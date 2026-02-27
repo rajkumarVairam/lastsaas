@@ -4,12 +4,12 @@ coverage:
       default:
         target: 80%
   ignore:
-    - "cmd/"
-    - "internal/db/"
-    - "internal/testutil/"
-    - "internal/configstore/"
-    - "internal/email/"
-    - "internal/health/"
-    - "internal/metrics/"
-    - "internal/planstore/"
-    - "internal/api/handlers/"
+    - "lastsaas/cmd/**"
+    - "lastsaas/internal/db/**"
+    - "lastsaas/internal/testutil/**"
+    - "lastsaas/internal/configstore/**"
+    - "lastsaas/internal/email/**"
+    - "lastsaas/internal/health/**"
+    - "lastsaas/internal/metrics/**"
+    - "lastsaas/internal/planstore/**"
+    - "lastsaas/internal/api/handlers/**"
