@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -96,10 +97,47 @@ func MustConnectTestDB(t *testing.T) (*db.MongoDB, func()) {
 	return database, cleanup
 }
 
-// SetConfigDir finds and sets the LASTSAAS_CONFIG_DIR env var.
-// It looks for a directory containing YAML config files to avoid matching Go source packages.
-func SetConfigDir(t *testing.T) {
-	t.Helper()
+// ConnectTestDB connects to the test database for use in TestMain (no *testing.T required).
+// Returns nil and a no-op cleanup if MONGODB_URI is not set.
+func ConnectTestDB() (*db.MongoDB, func()) {
+	loadEnvTest()
+	os.Setenv("LASTSAAS_ENV", "test")
+	findAndSetConfigDir()
+
+	uri := os.Getenv("MONGODB_URI")
+	if uri == "" {
+		return nil, func() {}
+	}
+
+	cfg, err := config.Load("test")
+	if err != nil {
+		log.Fatalf("testutil: failed to load test config: %v", err)
+	}
+
+	if !strings.Contains(strings.ToLower(cfg.Database.Name), "test") {
+		log.Fatalf("testutil: REFUSING to run tests — database name %q does not contain 'test'", cfg.Database.Name)
+	}
+
+	database, err := db.NewMongoDB(cfg.Database.URI, cfg.Database.Name)
+	if err != nil {
+		log.Fatalf("testutil: failed to connect to test database: %v", err)
+	}
+
+	cleanup := func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		colls, _ := database.Database.ListCollectionNames(ctx, bson.M{})
+		for _, name := range colls {
+			database.Database.Collection(name).DeleteMany(ctx, bson.M{})
+		}
+		database.Close(ctx)
+	}
+
+	return database, cleanup
+}
+
+// findAndSetConfigDir sets LASTSAAS_CONFIG_DIR without requiring *testing.T.
+func findAndSetConfigDir() {
 	if os.Getenv("LASTSAAS_CONFIG_DIR") != "" {
 		return
 	}
@@ -120,7 +158,16 @@ func SetConfigDir(t *testing.T) {
 		}
 		dir = parent
 	}
-	t.Fatalf("testutil: could not find config directory")
+}
+
+// SetConfigDir finds and sets the LASTSAAS_CONFIG_DIR env var.
+// It looks for a directory containing YAML config files to avoid matching Go source packages.
+func SetConfigDir(t *testing.T) {
+	t.Helper()
+	findAndSetConfigDir()
+	if os.Getenv("LASTSAAS_CONFIG_DIR") == "" {
+		t.Fatalf("testutil: could not find config directory")
+	}
 }
 
 func hasYAMLConfigs(dir string) bool {

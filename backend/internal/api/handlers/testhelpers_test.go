@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -19,6 +20,19 @@ import (
 
 	"github.com/gorilla/mux"
 )
+
+// sharedDB is a single DB connection shared across all tests in this package.
+var sharedDB *db.MongoDB
+var sharedDBCleanup func()
+
+func TestMain(m *testing.M) {
+	sharedDB, sharedDBCleanup = testutil.ConnectTestDB()
+	code := m.Run()
+	if sharedDBCleanup != nil {
+		sharedDBCleanup()
+	}
+	os.Exit(code)
+}
 
 // testEnv holds all services needed for handler integration tests.
 type testEnv struct {
@@ -38,8 +52,11 @@ type testEnv struct {
 func setupTestServer(t *testing.T) *testEnv {
 	t.Helper()
 
-	database, dbCleanup := testutil.MustConnectTestDB(t)
-	testutil.CleanupCollections(t, database)
+	if sharedDB == nil {
+		t.Skip("skipping: no test database connection")
+	}
+
+	testutil.CleanupCollections(t, sharedDB)
 
 	cfg := testutil.TestConfig(t)
 
@@ -51,25 +68,25 @@ func setupTestServer(t *testing.T) *testEnv {
 	)
 	passwordService := auth.NewTestPasswordService()
 	emitter := events.NewNoopEmitter()
-	sysLogger := syslog.New(database, nil)
-	cfgStore := configstore.New(database)
+	sysLogger := syslog.New(sharedDB, nil)
+	cfgStore := configstore.New(sharedDB)
 	cfgStore.Load(context.Background())
 
 	// Handlers
-	bootstrapHandler := NewBootstrapHandler(database)
-	authHandler := NewAuthHandler(database, jwtService, passwordService, nil, nil, emitter, cfg.Frontend.URL, sysLogger)
-	adminHandler := NewAdminHandler(database, emitter, sysLogger)
+	bootstrapHandler := NewBootstrapHandler(sharedDB)
+	authHandler := NewAuthHandler(sharedDB, jwtService, passwordService, nil, nil, emitter, cfg.Frontend.URL, sysLogger)
+	adminHandler := NewAdminHandler(sharedDB, emitter, sysLogger)
 	adminHandler.SetJWTService(jwtService)
-	logHandler := NewLogHandler(database)
-	tenantHandler := NewTenantHandler(database, nil, emitter, sysLogger)
-	plansHandler := NewPlansHandler(database, sysLogger, cfgStore, nil)
-	billingHandler := NewBillingHandler(nil, database, emitter, sysLogger, cfgStore)
-	apiKeysHandler := NewAPIKeysHandler(database, emitter, sysLogger)
-	webhooksHandler := NewWebhooksHandler(database, sysLogger, nil)
+	logHandler := NewLogHandler(sharedDB)
+	tenantHandler := NewTenantHandler(sharedDB, nil, emitter, sysLogger)
+	plansHandler := NewPlansHandler(sharedDB, sysLogger, cfgStore, nil)
+	billingHandler := NewBillingHandler(nil, sharedDB, emitter, sysLogger, cfgStore)
+	apiKeysHandler := NewAPIKeysHandler(sharedDB, emitter, sysLogger)
+	webhooksHandler := NewWebhooksHandler(sharedDB, sysLogger, nil)
 
 	// Middleware
-	authMiddleware := middleware.NewAuthMiddleware(jwtService, database)
-	tenantMiddleware := middleware.NewTenantMiddleware(database)
+	authMiddleware := middleware.NewAuthMiddleware(jwtService, sharedDB)
+	tenantMiddleware := middleware.NewTenantMiddleware(sharedDB)
 
 	// Router
 	router := mux.NewRouter()
@@ -180,7 +197,7 @@ func setupTestServer(t *testing.T) *testEnv {
 	server := httptest.NewServer(router)
 
 	return &testEnv{
-		DB:              database,
+		DB:              sharedDB,
 		Config:          cfg,
 		JWTService:      jwtService,
 		PasswordService: passwordService,
@@ -191,7 +208,6 @@ func setupTestServer(t *testing.T) *testEnv {
 		Client:          server.Client(),
 		Cleanup: func() {
 			server.Close()
-			dbCleanup()
 		},
 	}
 }
