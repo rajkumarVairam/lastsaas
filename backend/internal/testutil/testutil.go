@@ -83,12 +83,12 @@ func MustConnectTestDB(t *testing.T) (*db.MongoDB, func()) {
 	cleanup := func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
-		// Drop individual collections instead of the whole database to avoid
-		// "database is in the process of being dropped" errors when multiple
-		// test packages run in parallel against the same database.
+		// Delete documents instead of dropping collections to avoid races
+		// when multiple test packages run in parallel. Dropping collections
+		// destroys indexes/schemas and races with other packages' index builds.
 		colls, _ := database.Database.ListCollectionNames(ctx, bson.M{})
 		for _, name := range colls {
-			database.Database.Collection(name).Drop(ctx)
+			database.Database.Collection(name).DeleteMany(ctx, bson.M{})
 		}
 		database.Close(ctx)
 	}
@@ -136,7 +136,8 @@ func hasYAMLConfigs(dir string) bool {
 	return false
 }
 
-// CleanupCollections drops all test collections for isolation between tests.
+// CleanupCollections removes all documents from test collections for isolation between tests.
+// Uses DeleteMany instead of Drop to preserve indexes/schemas and avoid races with parallel packages.
 func CleanupCollections(t *testing.T, database *db.MongoDB) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -155,7 +156,7 @@ func CleanupCollections(t *testing.T, database *db.MongoDB) {
 		"announcements", "usage_events", "rate_limits",
 	}
 	for _, name := range collections {
-		database.Database.Collection(name).Drop(ctx)
+		database.Database.Collection(name).DeleteMany(ctx, bson.M{})
 	}
 }
 
