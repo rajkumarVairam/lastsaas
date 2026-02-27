@@ -19,12 +19,12 @@ func ValidAPIKeyAuthority(a APIKeyAuthority) bool {
 
 type APIKey struct {
 	ID         primitive.ObjectID `json:"id" bson:"_id,omitempty"`
-	Name       string             `json:"name" bson:"name"`
-	KeyHash    string             `json:"-" bson:"keyHash"`
-	KeyPreview string             `json:"keyPreview" bson:"keyPreview"`
-	Authority  APIKeyAuthority    `json:"authority" bson:"authority"`
-	CreatedBy  primitive.ObjectID `json:"createdBy" bson:"createdBy"`
-	CreatedAt  time.Time          `json:"createdAt" bson:"createdAt"`
+	Name       string             `json:"name" bson:"name" validate:"required,min=1,max=100"`
+	KeyHash    string             `json:"-" bson:"keyHash" validate:"required"`
+	KeyPreview string             `json:"keyPreview" bson:"keyPreview" validate:"required"`
+	Authority  APIKeyAuthority    `json:"authority" bson:"authority" validate:"required,valid_api_authority"`
+	CreatedBy  primitive.ObjectID `json:"createdBy" bson:"createdBy" validate:"required"`
+	CreatedAt  time.Time          `json:"createdAt" bson:"createdAt" validate:"required"`
 	LastUsedAt *time.Time         `json:"lastUsedAt" bson:"lastUsedAt"`
 	IsActive   bool               `json:"isActive" bson:"isActive"`
 }

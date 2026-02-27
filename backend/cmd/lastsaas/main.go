@@ -16,6 +16,7 @@ import (
 	"lastsaas/internal/configstore"
 	"lastsaas/internal/db"
 	"lastsaas/internal/models"
+	"lastsaas/internal/validation"
 	"lastsaas/internal/version"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -293,6 +294,10 @@ func cmdSetup() {
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
+	if err := validation.Validate(&tenant); err != nil {
+		fmt.Fprintf(os.Stderr, "Tenant validation failed: %v\n", err)
+		os.Exit(1)
+	}
 	if _, err := database.Tenants().InsertOne(ctx, tenant); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create root tenant: %v\n", err)
 		os.Exit(1)
@@ -310,6 +315,11 @@ func cmdSetup() {
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}
+	if err := validation.Validate(&user); err != nil {
+		database.Tenants().DeleteOne(ctx, bson.M{"_id": tenant.ID})
+		fmt.Fprintf(os.Stderr, "User validation failed: %v\n", err)
+		os.Exit(1)
+	}
 	if _, err := database.Users().InsertOne(ctx, user); err != nil {
 		database.Tenants().DeleteOne(ctx, bson.M{"_id": tenant.ID})
 		fmt.Fprintf(os.Stderr, "Failed to create user: %v\n", err)
@@ -324,6 +334,12 @@ func cmdSetup() {
 		Role:      models.RoleOwner,
 		JoinedAt:  now,
 		UpdatedAt: now,
+	}
+	if err := validation.Validate(&membership); err != nil {
+		database.Users().DeleteOne(ctx, bson.M{"_id": user.ID})
+		database.Tenants().DeleteOne(ctx, bson.M{"_id": tenant.ID})
+		fmt.Fprintf(os.Stderr, "Membership validation failed: %v\n", err)
+		os.Exit(1)
 	}
 	if _, err := database.TenantMemberships().InsertOne(ctx, membership); err != nil {
 		database.Users().DeleteOne(ctx, bson.M{"_id": user.ID})

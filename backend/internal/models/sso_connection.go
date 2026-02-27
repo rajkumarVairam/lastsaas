@@ -8,16 +8,16 @@ import (
 
 type SSOConnection struct {
 	ID               primitive.ObjectID `json:"id" bson:"_id,omitempty"`
-	TenantID         primitive.ObjectID `json:"tenantId" bson:"tenantId"`
+	TenantID         primitive.ObjectID `json:"tenantId" bson:"tenantId" validate:"required"`
 	IdPMetadataURL   string             `json:"idpMetadataUrl" bson:"idpMetadataUrl"`
 	IdPMetadataXML   string             `json:"-" bson:"idpMetadataXml,omitempty"`
-	IdPEntityID      string             `json:"idpEntityId" bson:"idpEntityId"`
-	IdPSSOURL        string             `json:"idpSsoUrl" bson:"idpSsoUrl"`
-	IdPCertificate   string             `json:"-" bson:"idpCertificate"`
+	IdPEntityID      string             `json:"idpEntityId" bson:"idpEntityId" validate:"required"`
+	IdPSSOURL        string             `json:"idpSsoUrl" bson:"idpSsoUrl" validate:"required,url"`
+	IdPCertificate   string             `json:"-" bson:"idpCertificate" validate:"required"`
 	AttributeMapping SSOAttributeMap    `json:"attributeMapping" bson:"attributeMapping"`
 	IsActive         bool               `json:"isActive" bson:"isActive"`
-	CreatedAt        time.Time          `json:"createdAt" bson:"createdAt"`
-	UpdatedAt        time.Time          `json:"updatedAt" bson:"updatedAt"`
+	CreatedAt        time.Time          `json:"createdAt" bson:"createdAt" validate:"required"`
+	UpdatedAt        time.Time          `json:"updatedAt" bson:"updatedAt" validate:"required"`
 }
 
 type SSOAttributeMap struct {

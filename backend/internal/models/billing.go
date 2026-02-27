@@ -28,15 +28,15 @@ const (
 // FinancialTransaction records every payment event.
 type FinancialTransaction struct {
 	ID                   primitive.ObjectID  `json:"id" bson:"_id,omitempty"`
-	TenantID             primitive.ObjectID  `json:"tenantId" bson:"tenantId"`
-	UserID               primitive.ObjectID  `json:"userId" bson:"userId"`
-	Type                 TransactionType     `json:"type" bson:"type"`
+	TenantID             primitive.ObjectID  `json:"tenantId" bson:"tenantId" validate:"required"`
+	UserID               primitive.ObjectID  `json:"userId" bson:"userId" validate:"required"`
+	Type                 TransactionType     `json:"type" bson:"type" validate:"required,oneof=subscription credit_purchase refund"`
 	AmountCents          int64               `json:"amountCents" bson:"amountCents"`
 	SubtotalCents        int64               `json:"subtotalCents" bson:"subtotalCents"`
 	TaxAmountCents       int64               `json:"taxAmountCents" bson:"taxAmountCents"`
-	Currency             string              `json:"currency" bson:"currency"`
+	Currency             string              `json:"currency" bson:"currency" validate:"required,len=3"`
 	Description          string              `json:"description" bson:"description"`
-	InvoiceNumber        string              `json:"invoiceNumber" bson:"invoiceNumber"`
+	InvoiceNumber        string              `json:"invoiceNumber" bson:"invoiceNumber" validate:"required"`
 	StripeSessionID      string              `json:"stripeSessionId,omitempty" bson:"stripeSessionId,omitempty"`
 	StripeInvoiceID      string              `json:"stripeInvoiceId,omitempty" bson:"stripeInvoiceId,omitempty"`
 	StripeSubscriptionID string              `json:"stripeSubscriptionId,omitempty" bson:"stripeSubscriptionId,omitempty"`
@@ -45,7 +45,7 @@ type FinancialTransaction struct {
 	BundleID             *primitive.ObjectID `json:"bundleId,omitempty" bson:"bundleId,omitempty"`
 	BundleName           string              `json:"bundleName,omitempty" bson:"bundleName,omitempty"`
 	BillingInterval      string              `json:"billingInterval,omitempty" bson:"billingInterval,omitempty"`
-	CreatedAt            time.Time           `json:"createdAt" bson:"createdAt"`
+	CreatedAt            time.Time           `json:"createdAt" bson:"createdAt" validate:"required"`
 }
 
 // StripeMapping maps internal entities (plans, bundles) to Stripe Products/Prices.

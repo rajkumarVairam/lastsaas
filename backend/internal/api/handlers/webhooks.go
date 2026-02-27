@@ -13,6 +13,7 @@ import (
 	"lastsaas/internal/middleware"
 	"lastsaas/internal/models"
 	"lastsaas/internal/syslog"
+	"lastsaas/internal/validation"
 	"lastsaas/internal/webhooks"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -256,6 +257,11 @@ func (h *WebhooksHandler) CreateWebhook(w http.ResponseWriter, r *http.Request) 
 		CreatedBy:     user.ID,
 		CreatedAt:     now,
 		UpdatedAt:     now,
+	}
+
+	if err := validation.Validate(&hook); err != nil {
+		respondWithError(w, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	result, err := h.db.Webhooks().InsertOne(r.Context(), hook)

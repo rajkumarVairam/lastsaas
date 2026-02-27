@@ -8,6 +8,7 @@ import (
 	"lastsaas/internal/db"
 	"lastsaas/internal/models"
 	"lastsaas/internal/syslog"
+	"lastsaas/internal/validation"
 
 	"github.com/gorilla/mux"
 	"go.mongodb.org/mongo-driver/bson"
@@ -94,6 +95,11 @@ func (h *AnnouncementsHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Publish {
 		ann.PublishedAt = &now
+	}
+
+	if err := validation.Validate(&ann); err != nil {
+		respondWithError(w, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	result, err := h.db.Announcements().InsertOne(r.Context(), ann)

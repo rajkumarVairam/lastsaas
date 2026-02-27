@@ -15,6 +15,7 @@ import (
 	"lastsaas/internal/models"
 	stripeservice "lastsaas/internal/stripe"
 	"lastsaas/internal/syslog"
+	"lastsaas/internal/validation"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -274,6 +275,11 @@ func (h *PlansHandler) CreatePlan(w http.ResponseWriter, r *http.Request) {
 		IsSystem:             false,
 		CreatedAt:            now,
 		UpdatedAt:            now,
+	}
+
+	if err := validation.Validate(&plan); err != nil {
+		respondWithError(w, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	result, err := h.db.Plans().InsertOne(r.Context(), plan)

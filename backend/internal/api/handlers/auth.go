@@ -18,6 +18,7 @@ import (
 	"lastsaas/internal/middleware"
 	"lastsaas/internal/models"
 	"lastsaas/internal/syslog"
+	"lastsaas/internal/validation"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -197,6 +198,11 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		IsActive:      true,
 		CreatedAt:     now,
 		UpdatedAt:     now,
+	}
+
+	if err := validation.Validate(&user); err != nil {
+		respondWithError(w, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	if _, err := h.db.Users().InsertOne(r.Context(), user); err != nil {

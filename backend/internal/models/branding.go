@@ -23,9 +23,9 @@ type BrandingConfig struct {
 	ID primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 
 	// Identity
-	AppName  string `json:"appName" bson:"appName"`
+	AppName  string `json:"appName" bson:"appName" validate:"required,min=1,max=200"`
 	Tagline  string `json:"tagline" bson:"tagline"`
-	LogoMode string `json:"logoMode" bson:"logoMode"` // "text", "image", "both"
+	LogoMode string `json:"logoMode" bson:"logoMode" validate:"omitempty,valid_logo_mode"` // "text", "image", "both"
 
 	// Theme
 	PrimaryColor    string `json:"primaryColor" bson:"primaryColor"`
@@ -79,8 +79,8 @@ type BrandingAsset struct {
 // CustomPage stores user-created pages with arbitrary HTML content.
 type CustomPage struct {
 	ID              primitive.ObjectID `json:"id" bson:"_id,omitempty"`
-	Slug            string             `json:"slug" bson:"slug"`
-	Title           string             `json:"title" bson:"title"`
+	Slug            string             `json:"slug" bson:"slug" validate:"required,min=1,max=200"`
+	Title           string             `json:"title" bson:"title" validate:"required,min=1,max=200"`
 	HTMLBody        string             `json:"htmlBody" bson:"htmlBody"`
 	MetaDescription string             `json:"metaDescription" bson:"metaDescription"`
 	OgImage         string             `json:"ogImage" bson:"ogImage"`

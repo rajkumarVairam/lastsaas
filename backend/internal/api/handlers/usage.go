@@ -9,6 +9,7 @@ import (
 	"lastsaas/internal/db"
 	"lastsaas/internal/middleware"
 	"lastsaas/internal/models"
+	"lastsaas/internal/validation"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -65,6 +66,11 @@ func (h *UsageHandler) RecordUsage(w http.ResponseWriter, r *http.Request) {
 		Quantity:  req.Quantity,
 		Metadata:  req.Metadata,
 		CreatedAt: time.Now(),
+	}
+
+	if err := validation.Validate(&event); err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), http.StatusBadRequest)
+		return
 	}
 
 	session, err := h.db.Client.StartSession()

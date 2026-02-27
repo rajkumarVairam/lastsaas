@@ -41,6 +41,7 @@ func NewMongoDB(uri, database string) (*MongoDB, error) {
 	}
 
 	db.ensureIndexes()
+	db.EnsureSchemaValidation()
 
 	return db, nil
 }
