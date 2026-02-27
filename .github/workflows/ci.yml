@@ -35,7 +35,7 @@ jobs:
       - name: Run tests with coverage
         working-directory: backend
         run: |
-          CGO_ENABLED=0 go test ./... \
+          CGO_ENABLED=0 go test -p 1 ./... \
             -coverprofile=coverage.out \
             -covermode=atomic \
             -timeout=600s
