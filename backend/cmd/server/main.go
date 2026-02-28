@@ -31,14 +31,18 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 // spaHandler serves a single-page application from a static directory.
 // For files that exist on disk, it serves them directly. For all other
 // paths it serves index.html so the SPA router can handle them.
+// When serving index.html, it replaces {{APP_NAME}} with the actual app name
+// to prevent a title flicker while JavaScript loads branding data.
 type spaHandler struct {
 	staticPath string
 	indexPath  string
+	getAppName func() string
 }
 
 func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -52,9 +56,25 @@ func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	fi, err := os.Stat(path)
 	if os.IsNotExist(err) || (err == nil && fi.IsDir()) {
-		// Serve index.html with no-store so browsers always fetch the latest version
+		// Serve index.html with no-store so browsers always fetch the latest version.
+		// Replace the {{APP_NAME}} placeholder with the real app name so the
+		// browser tab shows the correct title immediately, before JS loads.
 		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
-		http.ServeFile(w, r, filepath.Join(h.staticPath, h.indexPath))
+		indexFile := filepath.Join(h.staticPath, h.indexPath)
+		data, readErr := os.ReadFile(indexFile)
+		if readErr != nil {
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+		appName := "App"
+		if h.getAppName != nil {
+			if name := h.getAppName(); name != "" {
+				appName = name
+			}
+		}
+		html := strings.Replace(string(data), "{{APP_NAME}}", appName, 1)
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write([]byte(html))
 		return
 	}
 	if err != nil {
@@ -621,7 +641,18 @@ func main() {
 	// Serve frontend static files in production
 	if cfg.Frontend.StaticDir != "" {
 		log.Printf("Serving frontend from %s", cfg.Frontend.StaticDir)
-		spa := spaHandler{staticPath: cfg.Frontend.StaticDir, indexPath: "index.html"}
+		spa := spaHandler{
+			staticPath: cfg.Frontend.StaticDir,
+			indexPath:  "index.html",
+			getAppName: func() string {
+				// Check branding config in DB first, fall back to configstore app.name.
+				var bc models.BrandingConfig
+				if err := database.BrandingConfig().FindOne(context.Background(), bson.M{}).Decode(&bc); err == nil && bc.AppName != "" {
+					return bc.AppName
+				}
+				return cfgStore.Get("app.name")
+			},
+		}
 		router.PathPrefix("/").Handler(spa)
 	}
 
