@@ -176,7 +176,7 @@ function KPIsTab() {
               </defs>
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#64748b' }} tickLine={false} axisLine={false} />
               <YAxis hide />
-              <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} formatter={(v: number) => [formatCents(v), 'MRR']} />
+              <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} formatter={(v) => [formatCents(v as number), 'MRR']} />
               <Area type="monotone" dataKey="value" stroke="#10b981" fill="url(#mrrGrad)" strokeWidth={2} />
             </AreaChart>
           </ResponsiveContainer>
@@ -363,7 +363,7 @@ function EngagementTab() {
               </defs>
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#64748b' }} tickLine={false} axisLine={false} />
               <YAxis hide />
-              <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} formatter={(v: number) => [formatNum(v), 'Credits']} />
+              <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} formatter={(v) => [formatNum(v as number), 'Credits']} />
               <Area type="monotone" dataKey="value" stroke="#8b5cf6" fill="url(#creditGrad)" strokeWidth={2} />
             </AreaChart>
           </ResponsiveContainer>
@@ -442,7 +442,7 @@ function EventsTab() {
                   </defs>
                   <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#64748b' }} tickLine={false} axisLine={false} />
                   <YAxis hide />
-                  <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} formatter={(v: number) => [formatNum(v), 'Events']} />
+                  <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} formatter={(v) => [formatNum(v as number), 'Events']} />
                   <Area type="monotone" dataKey="value" stroke="#10b981" fill="url(#eventGrad)" strokeWidth={2} />
                 </AreaChart>
               </ResponsiveContainer>

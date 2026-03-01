@@ -150,7 +150,7 @@ export default function AnnouncementsPage() {
 
 const announcementSchema = z.object({
   title: z.string().trim().min(1, 'Title is required'),
-  body: z.string().trim().optional().default(''),
+  body: z.string().trim().default(''),
   publish: z.boolean().default(false),
 });
 
