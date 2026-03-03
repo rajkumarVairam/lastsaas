@@ -7,8 +7,8 @@ import type { EventDefinition } from '../../types';
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required').max(128).regex(/^[a-zA-Z0-9._-]+$/, 'Use alphanumeric, dots, underscores, or hyphens'),
-  description: z.string().max(256).default(''),
-  parentId: z.string().default(''),
+  description: z.string().max(256),
+  parentId: z.string(),
 });
 
 type FormData = z.infer<typeof schema>;
