@@ -275,8 +275,9 @@ func (s *Service) collectAndStore() {
 
 	// Integration API call counters (snapshot and reset)
 	metric.Integrations = models.IntegrationCountMetrics{
-		StripeAPICalls: apicounter.StripeAPICalls.Swap(0),
-		ResendEmails:   apicounter.ResendEmails.Swap(0),
+		StripeAPICalls:  apicounter.StripeAPICalls.Swap(0),
+		ResendEmails:    apicounter.ResendEmails.Swap(0),
+		DataDogAPICalls: apicounter.DataDogAPICalls.Swap(0),
 	}
 
 	if _, err := s.db.SystemMetrics().InsertOne(ctx, metric); err != nil {

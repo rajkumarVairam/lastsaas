@@ -253,5 +253,12 @@ func NewSAMLChecker() IntegrationChecker {
 	}
 }
 
+// NewDataDogChecker returns a checker that validates the DataDog API key.
+func NewDataDogChecker(validator interface{ Validate(ctx context.Context) error }) IntegrationChecker {
+	return func(ctx context.Context) error {
+		return validator.Validate(ctx)
+	}
+}
+
 // Ensure mutex fields are initialized (called from init or New doesn't need explicit init for sync.RWMutex)
 var _ sync.RWMutex

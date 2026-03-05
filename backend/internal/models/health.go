@@ -91,8 +91,9 @@ type GoRuntimeMetrics struct {
 }
 
 type IntegrationCountMetrics struct {
-	StripeAPICalls int64 `json:"stripeApiCalls" bson:"stripeApiCalls"`
-	ResendEmails   int64 `json:"resendEmails" bson:"resendEmails"`
+	StripeAPICalls  int64 `json:"stripeApiCalls" bson:"stripeApiCalls"`
+	ResendEmails    int64 `json:"resendEmails" bson:"resendEmails"`
+	DataDogAPICalls int64 `json:"datadogApiCalls" bson:"datadogApiCalls"`
 }
 
 // Integration health check types (in-memory only, no BSON persistence)

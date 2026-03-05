@@ -35,3 +35,7 @@ stripe:
 
 webhooks:
   encryption_key: ${WEBHOOK_ENCRYPTION_KEY}
+
+datadog:
+  api_key: ${DATADOG_API_KEY}
+  site: ${DATADOG_SITE:us5.datadoghq.com}

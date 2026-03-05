@@ -36,6 +36,10 @@ type Service struct {
 	stopCh  chan struct{}
 	stopped chan struct{}
 
+	// Optional observer called for each tracked event (e.g., DataDog forwarding).
+	// Must be non-blocking.
+	onTrack func(models.TelemetryEvent)
+
 	// KPI cache (singleflight prevents thundering herd on expiry)
 	kpiMu       sync.Mutex
 	kpiCache    *KPIData
@@ -135,6 +139,12 @@ func (s *Service) flushLoop() {
 
 // --- Tracking (Go SDK) ---
 
+// SetOnTrack registers a callback invoked for each telemetry event.
+// The callback must be non-blocking (e.g., enqueue to a buffered channel).
+func (s *Service) SetOnTrack(fn func(models.TelemetryEvent)) {
+	s.onTrack = fn
+}
+
 // Track records a single telemetry event asynchronously via the write buffer.
 func (s *Service) Track(ctx context.Context, event models.TelemetryEvent) error {
 	if event.ID.IsZero() {
@@ -142,6 +152,9 @@ func (s *Service) Track(ctx context.Context, event models.TelemetryEvent) error 
 	}
 	if event.CreatedAt.IsZero() {
 		event.CreatedAt = time.Now()
+	}
+	if s.onTrack != nil {
+		s.onTrack(event)
 	}
 	select {
 	case s.trackCh <- event:
@@ -166,6 +179,9 @@ func (s *Service) TrackBatch(ctx context.Context, events []models.TelemetryEvent
 		}
 		if events[i].CreatedAt.IsZero() {
 			events[i].CreatedAt = now
+		}
+		if s.onTrack != nil {
+			s.onTrack(events[i])
 		}
 		docs[i] = events[i]
 	}

@@ -27,6 +27,7 @@ import (
 	stripeservice "lastsaas/internal/stripe"
 	"lastsaas/internal/syslog"
 	"lastsaas/internal/telemetry"
+	"lastsaas/internal/datadog"
 	"lastsaas/internal/version"
 	"lastsaas/internal/webhooks"
 
@@ -140,6 +141,22 @@ func main() {
 
 	// Initialize system logger
 	sysLogger := syslog.New(database, cfgStore.Get)
+
+	// Initialize DataDog integration (optional)
+	var ddClient *datadog.Client
+	if cfg.DataDog.APIKey != "" {
+		site := cfg.DataDog.Site
+		if site == "" {
+			site = "us5.datadoghq.com"
+		}
+		ddClient = datadog.New(cfg.DataDog.APIKey, site, cfg.Environment, cfg.App.Name)
+		defer ddClient.Stop()
+		sysLogger.SetOnLog(ddClient.TrackSyslogEntry)
+		slog.Info("DataDog integration configured", "site", site)
+	} else {
+		slog.Warn("DataDog integration not configured", "reason", "missing API key")
+	}
+
 	sysLogger.Critical(context.Background(), fmt.Sprintf("System startup: LastSaaS v%s", version.Current))
 
 	// Initialize services
@@ -276,6 +293,11 @@ func main() {
 	} else {
 		healthService.RegisterIntegration("saml_sso", nil)
 	}
+	if ddClient != nil {
+		healthService.RegisterIntegration("datadog", health.NewDataDogChecker(ddClient))
+	} else {
+		healthService.RegisterIntegration("datadog", nil)
+	}
 
 	healthService.Start()
 	defer healthService.Stop()
@@ -283,6 +305,9 @@ func main() {
 	// Initialize telemetry service
 	telemetrySvc := telemetry.New(database)
 	defer telemetrySvc.Stop()
+	if ddClient != nil {
+		telemetrySvc.SetOnTrack(ddClient.TrackTelemetryEvent)
+	}
 
 	// Initialize handlers
 	bootstrapHandler := handlers.NewBootstrapHandler(database)

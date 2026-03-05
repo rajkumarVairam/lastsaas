@@ -7,6 +7,7 @@ import "sync/atomic"
 // snapshot/reset by the health collector every 60 seconds.
 
 var (
-	StripeAPICalls atomic.Int64
-	ResendEmails   atomic.Int64
+	StripeAPICalls  atomic.Int64
+	ResendEmails    atomic.Int64
+	DataDogAPICalls atomic.Int64
 )

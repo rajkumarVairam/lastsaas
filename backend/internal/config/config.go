@@ -22,6 +22,7 @@ type Config struct {
 	Stripe      StripeConfig     `yaml:"stripe"`
 	WebAuthn    WebAuthnConfig   `yaml:"webauthn"`
 	Webhooks    WebhooksConfig   `yaml:"webhooks"`
+	DataDog     DataDogConfig    `yaml:"datadog"`
 }
 
 type WebhooksConfig struct {
@@ -82,6 +83,11 @@ type StripeConfig struct {
 	SecretKey      string `yaml:"secret_key"`
 	PublishableKey string `yaml:"publishable_key"`
 	WebhookSecret  string `yaml:"webhook_secret"`
+}
+
+type DataDogConfig struct {
+	APIKey string `yaml:"api_key"`
+	Site   string `yaml:"site"` // e.g. "us5.datadoghq.com"
 }
 
 // LoadEnvFile loads a .env file into the process environment if it exists.
