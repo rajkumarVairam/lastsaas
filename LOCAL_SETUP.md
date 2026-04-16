@@ -89,8 +89,8 @@ This approach uses LastSaaS's native multi-tenancy. You only run one instance of
 
 1. **Log in as Root Admin:** Access your application and log in with your root owner credentials.
 2. **Setup a Plan:** In the **Admin → Plans** menu, create a subscription package and define entitlements for the client.
-3. **Create the Tenant:** Go to **Admin → Tenants**. You can manually create a new tenant organization (e.g., "Client A Inc.") from the dashboard. Alternatively, the client can sign up and create their own organization.
-4. **Assign the Plan:** Once their tenant is created, assign them the plan you created.
+3. **Create the Tenant (Self-Serve Workflow):** In LastSaaS, tenants are exclusively created when a user signs up on the public `/signup` page. The platform defaults to a Product-Led Growth (PLG) model, meaning there is no "Create Tenant" button in the Admin UI. If you want to do "White-Glove" manual onboarding for Client A, you should log out of your Admin account, go to `/signup`, and create the account on their behalf using their email address.
+4. **Assign the Plan:** Once you (or the client) creates their tenant via `/signup`, log back in as Root Admin. Go to **Admin → Tenants**, click on their new tenant, and manually assign them the Stripe plan you crafted.
 5. **Team Invitations:** The client can now log in, invite their team members, and access their isolated workspace.
 
 ### Approach 2: Dedicated Deployment (White-Glove)
@@ -108,7 +108,17 @@ If the client requires absolute data isolation or you are providing them a compl
    ```
 4. **Brand the Application:** Log into the Admin Panel for the new deployment. Go to **Admin → Branding Editor** to upload the client's logo, modify theme colors, and customize their landing page.
 
-## Step 7: Admin UI Capabilities
+## Step 7: Architecture Design & Source of Truth
+
+To save you from debugging, here are two major architectural design choices the LastSaaS team made that you must know:
+
+### 1. The "Missing" Add Tenant Button (The PLG Approach)
+There is deliberately no "Add Tenant" or "Assign Tenant" button in the Admin UI. If a user signs up using Google OAuth, they remain an "unassigned" user until they either create their own workspace or accept an email invitation to join an existing one. Rebuilding complex provisioning logic (hashing passwords, sending emails, legally accepting Terms of Service) into the Admin dashboard generates massive tech debt. **Source of Truth:** 100% of tenants are driven from the public signup flow.
+
+### 2. Stripe Lazy Provisioning
+If you create a completely new Plan (e.g., "Super Tier - $99") in the Admin UI, it **will not** immediately appear in your Stripe Dashboard. LastSaaS uses Lazy Provisioning to prevent Stripe from getting cluttered. **Source of Truth:** It only pushes the Product and Price over to the Stripe API at the exact millisecond the *first* customer clicks "Checkout" for that specific plan.
+
+## Step 8: Admin UI Capabilities
 
 Yes, you can accomplish almost all configuration and management directly through the built-in Admin UI without touching any code. Here is a comprehensive list of what the Root Admin (Owner) can do directly from the dashboard:
 
