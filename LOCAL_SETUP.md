@@ -71,9 +71,21 @@ The CLI will prompt you for:
 
 Follow the interactive prompts to create your owner account. Once finished, visit `http://localhost:4280` in your browser and log in with those credentials!
 
-## Step 5: (Optional) Testing
+## Step 5: Testing Local Workflows
 
-To run the backend tests locally to ensure everything works:
+### 1. Testing Stripe Subscriptions Locally
+When you test the checkout flow locally, LastSaaS's database will not automatically upgrade your account. This is because Stripe (on the public internet) cannot send success Webhooks to your local laptop (`localhost`). 
+To fix this and test end-to-end billing flows locally, you must run the Stripe CLI to tunnel webhooks to your machine:
+
+```powershell
+# Install the Stripe CLI from Stripe's website if you haven't already.
+# Then, forward webhooks directly to the LastSaaS backend:
+stripe listen --forward-to localhost:4290/api/webhooks/stripe
+```
+Once this is running in a background terminal, Stripe will successfully ping your local Go backend the exact second a checkout completes, and your plans will instantly activate in the UI.
+
+### 2. Running Unit Tests
+To run the backend Go tests:
 ```powershell
 cd backend
 $env:LASTSAAS_ENV="test"
