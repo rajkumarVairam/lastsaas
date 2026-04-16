@@ -107,3 +107,33 @@ If the client requires absolute data isolation or you are providing them a compl
    go run ./cmd/lastsaas setup
    ```
 4. **Brand the Application:** Log into the Admin Panel for the new deployment. Go to **Admin → Branding Editor** to upload the client's logo, modify theme colors, and customize their landing page.
+
+## Step 7: Admin UI Capabilities
+
+Yes, you can accomplish almost all configuration and management directly through the built-in Admin UI without touching any code. Here is a comprehensive list of what the Root Admin (Owner) can do directly from the dashboard:
+
+### 1. Subscription & Billing (Stripe Integration)
+- **Stripe Plans:** You can completely create and manage Stripe subscription packages (e.g., Starter, Pro, Enterprise) directly from **Admin → Plans**. You define the pricing, limits, entitlements, and trial days here; LastSaaS will automatically sync this to Stripe. No need to touch the Stripe dashboard!
+- **Credit Bundles:** Create one-time purchase packs (e.g., "500 Credits for $5") from **Admin → Credit Bundles**.
+- **Promotions:** Create and manage Stripe discount codes and coupons from **Admin → Promotions**.
+- **Financial Dashboard:** View transaction history across all tenants, and see real-time charts for Revenue, ARR, DAU, and MAU.
+
+### 2. Tenant (Client) Management
+- **View & Edit Tenants:** See a list of all client organizations, view their current plan, billing status, and member lists.
+- **Plan Assignment:** Manually assign or override a tenant's subscription plan.
+- **Status Control:** Deactivate, suspend, or manage customer accounts easily.
+
+### 3. Branding & White-Labeling
+- **Branding Editor:** Upload custom logos, change theme colors (which auto-generates shade palettes), and set custom fonts.
+- **Pages & CSS:** Inject custom CSS, modify the landing page HTML, and generate custom public pages (like `/p/terms`).
+
+### 4. System Operation & Monitoring
+- **System Health:** View real-time CPU, memory, disk, and HTTP latency metrics across your server instances. Look at integration health (e.g., is MongoDB or Stripe down?).
+- **Log Viewer:** Search through system logs and filter by severity to troubleshoot bugs without touching the server terminal.
+- **Product Analytics:** View the conversion funnel (Visitors → Signups → Paid), SaaS KPIs (MRR, Churn, LTV), and engagement cohorts.
+- **Configuration Variables:** Edit runtime string/number/enum variables live without needing to redeploy.
+
+### 5. Utilities
+- **User Management:** Suspend users, send them in-app messages, or securely impersonate a user account to troubleshoot what they are seeing.
+- **Webhooks:** Create outgoing webhooks for 19 different events (e.g., `payment.received` or `user.registered`) and view delivery history.
+- **API Keys:** Issue admin-level or user-level `lsk_` scoped API keys.
