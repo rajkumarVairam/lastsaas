@@ -42,3 +42,6 @@ dist/
 
 # MCP registry tokens
 .mcpregistry_*
+
+# Claude Code personal settings (machine-specific)
+.claude/settings.local.json
