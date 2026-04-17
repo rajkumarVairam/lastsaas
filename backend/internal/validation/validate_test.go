@@ -118,7 +118,7 @@ func TestValidate_TenantInvalidBillingStatus(t *testing.T) {
 	}
 }
 
-func TestValidate_ValidMembership(t *testing.T) {
+func TestValidate_ValidTenantMembership(t *testing.T) {
 	m := models.TenantMembership{
 		UserID:    primitive.NewObjectID(),
 		TenantID:  primitive.NewObjectID(),
@@ -347,6 +347,78 @@ func TestValidate_JobMaxAttemptsExceeded(t *testing.T) {
 	j.MaxAttempts = 21
 	if err := Validate(&j); err == nil {
 		t.Fatal("expected validation error for maxAttempts > 20")
+	}
+}
+
+func TestValidate_ValidCreditBundle(t *testing.T) {
+	cb := models.CreditBundle{
+		Name: "Starter Pack", Credits: 100, PriceCents: 999,
+		CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	if err := Validate(&cb); err != nil {
+		t.Errorf("expected valid credit bundle to pass: %v", err)
+	}
+}
+
+func TestValidate_ValidAnnouncement(t *testing.T) {
+	a := models.Announcement{
+		Title: "System maintenance", Body: "Brief downtime scheduled.",
+		CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	if err := Validate(&a); err != nil {
+		t.Errorf("expected valid announcement to pass: %v", err)
+	}
+}
+
+func TestValidate_ValidCustomPage(t *testing.T) {
+	cp := models.CustomPage{
+		Slug: "about-us", Title: "About Us",
+		CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	if err := Validate(&cp); err != nil {
+		t.Errorf("expected valid custom page to pass: %v", err)
+	}
+}
+
+func TestValidate_ValidMessage(t *testing.T) {
+	m := models.Message{
+		UserID: primitive.NewObjectID(), Subject: "Welcome", Body: "Hello!",
+		CreatedAt: time.Now(),
+	}
+	if err := Validate(&m); err != nil {
+		t.Errorf("expected valid message to pass: %v", err)
+	}
+}
+
+func TestValidate_ValidUsageEvent(t *testing.T) {
+	ue := models.UsageEvent{
+		TenantID: primitive.NewObjectID(), UserID: primitive.NewObjectID(),
+		Type: "api_call", Quantity: 1, CreatedAt: time.Now(),
+	}
+	if err := Validate(&ue); err != nil {
+		t.Errorf("expected valid usage event to pass: %v", err)
+	}
+}
+
+func TestValidate_ValidSSOConnection(t *testing.T) {
+	s := models.SSOConnection{
+		TenantID:       primitive.NewObjectID(),
+		IdPEntityID:    "https://idp.example.com/entity",
+		IdPSSOURL:      "https://idp.example.com/sso",
+		IdPCertificate: "-----BEGIN CERTIFICATE-----\nMIIBIjAN...\n-----END CERTIFICATE-----",
+		CreatedAt:      time.Now(), UpdatedAt: time.Now(),
+	}
+	if err := Validate(&s); err != nil {
+		t.Errorf("expected valid SSO connection to pass: %v", err)
+	}
+}
+
+func TestValidate_ValidEventDefinition(t *testing.T) {
+	ed := models.EventDefinition{
+		Name: "user.signed_up", CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	if err := Validate(&ed); err != nil {
+		t.Errorf("expected valid event definition to pass: %v", err)
 	}
 }
 

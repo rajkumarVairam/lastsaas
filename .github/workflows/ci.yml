@@ -14,6 +14,13 @@ jobs:
       - name: Check tenant isolation
         run: bash scripts/check_tenant_isolation.sh
 
+  model-schemas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check model schemas and validation tests in sync
+        run: bash scripts/check_model_schemas.sh
+
   build:
     runs-on: ubuntu-latest
     steps:
