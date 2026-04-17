@@ -109,7 +109,7 @@ export default function BillingTab() {
               disabled={portalLoading}
               className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-dark-800 text-dark-300 border border-dark-700 rounded-lg hover:border-dark-600 hover:text-white transition-colors disabled:opacity-60"
             >
-              {portalLoading ? <LoadingSpinner size="sm" /> : <><ExternalLink className="w-4 h-4" /> Update Payment Method</>}
+              {portalLoading ? <LoadingSpinner size="sm" /> : <><ExternalLink className="w-4 h-4" /> Manage Subscription</>}
             </button>
           </div>
         )}

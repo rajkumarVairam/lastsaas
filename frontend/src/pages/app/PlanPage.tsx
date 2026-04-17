@@ -53,7 +53,7 @@ export default function PlanPage() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showWaiverModal, setShowWaiverModal] = useState(false);
   const [pendingWaiverPlan, setPendingWaiverPlan] = useState<Plan | null>(null);
-  const [selectedInterval, setSelectedInterval] = useState<'month' | 'year'>('month');
+  const [selectedInterval, setSelectedInterval] = useState<'month' | 'year'>('year');
   const [searchParams] = useSearchParams();
   const upgradePlanId = searchParams.get('upgrade');
   const [highlightId, setHighlightId] = useState<string | null>(null);
@@ -107,7 +107,7 @@ export default function PlanPage() {
     try {
       const result = await billingApi.checkout({
         planId: plan.id,
-        billingInterval: hasAnnual ? selectedInterval : 'month',
+        billingInterval: selectedInterval,
         removeBillingWaiver,
       });
       if (result.waived) {
@@ -203,8 +203,29 @@ export default function PlanPage() {
             }`}
           >
             Annual
-            <span className="ml-1 text-xs opacity-75">Save up to {Math.max(...plans.map(p => p.annualDiscountPct))}%</span>
+            {Math.max(...plans.map(p => p.annualDiscountPct)) > 0 && (
+              <span className="ml-1 text-xs opacity-75">Save up to {Math.max(...plans.map(p => p.annualDiscountPct))}%</span>
+            )}
           </button>
+        </div>
+      )}
+
+      {/* Annual upsell banner — shown to active monthly subscribers when a discount exists */}
+      {billingStatus === 'active' && billingInterval === 'month' && currentPlan && currentPlan.annualDiscountPct > 0 && (
+        <div className="flex items-center justify-between bg-accent-emerald/10 border border-accent-emerald/30 rounded-2xl px-6 py-4 mb-6 gap-4">
+          <div className="flex items-center gap-3">
+            <Sparkles className="w-5 h-5 text-accent-emerald shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-white">Save {currentPlan.annualDiscountPct}% by switching to annual billing</p>
+              <p className="text-xs text-dark-400 mt-0.5">Switch in Settings → Billing → Manage Subscription</p>
+            </div>
+          </div>
+          <a
+            href="/app/settings?tab=billing"
+            className="shrink-0 px-4 py-1.5 text-sm font-medium bg-accent-emerald text-dark-950 rounded-lg hover:bg-accent-emerald/90 transition-colors"
+          >
+            Switch to Annual
+          </a>
         </div>
       )}
 
