@@ -65,6 +65,7 @@ func (m *MongoDB) ensureIndexes() {
 				{Keys: bson.D{{Key: "githubId", Value: 1}}, Options: options.Index().SetSparse(true)},
 				{Keys: bson.D{{Key: "microsoftId", Value: 1}}, Options: options.Index().SetSparse(true)},
 				{Keys: bson.D{{Key: "displayName", Value: 1}}},
+				{Keys: bson.D{{Key: "email", Value: "text"}, {Key: "displayName", Value: "text"}}},
 			},
 		},
 		{
@@ -76,6 +77,7 @@ func (m *MongoDB) ensureIndexes() {
 				{Keys: bson.D{{Key: "billingStatus", Value: 1}, {Key: "isActive", Value: 1}}},
 				{Keys: bson.D{{Key: "planId", Value: 1}}},
 				{Keys: bson.D{{Key: "trialUsedAt", Value: 1}}, Options: options.Index().SetSparse(true)},
+				{Keys: bson.D{{Key: "name", Value: "text"}, {Key: "slug", Value: "text"}}},
 			},
 		},
 		{
@@ -174,6 +176,7 @@ func (m *MongoDB) ensureIndexes() {
 				{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "createdAt", Value: -1}}},
 				{Keys: bson.D{{Key: "userId", Value: 1}, {Key: "createdAt", Value: -1}}},
 				{Keys: bson.D{{Key: "invoiceNumber", Value: 1}}, Options: options.Index().SetUnique(true)},
+				{Keys: bson.D{{Key: "description", Value: "text"}, {Key: "invoiceNumber", Value: "text"}, {Key: "planName", Value: "text"}, {Key: "bundleName", Value: "text"}}},
 			},
 		},
 		{

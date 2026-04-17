@@ -695,9 +695,12 @@ func (s *Service) CustomEventSummary(ctx context.Context, start, end time.Time, 
 	}, nil
 }
 
-// ListEventTypes returns all distinct event types with counts.
+// ListEventTypes returns all distinct event types with counts over the last 90 days.
 func (s *Service) ListEventTypes(ctx context.Context) ([]EventTypeSummary, error) {
 	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{
+			"createdAt": bson.M{"$gte": time.Now().AddDate(0, 0, -90)},
+		}}},
 		{{Key: "$group", Value: bson.M{
 			"_id":      bson.M{"eventName": "$eventName", "category": "$category"},
 			"count":    bson.M{"$sum": 1},
@@ -1063,9 +1066,12 @@ func (s *Service) calculateMRR(ctx context.Context) int64 {
 }
 
 func (s *Service) medianTimeToFirstPurchase(ctx context.Context) float64 {
-	// Get first transaction per tenant
+	// Limit to last 2 years to keep the aggregation bounded; median over older cohorts rarely changes.
 	pipeline := mongo.Pipeline{
-		{{Key: "$match", Value: bson.M{"type": models.TransactionSubscription}}},
+		{{Key: "$match", Value: bson.M{
+			"type":      models.TransactionSubscription,
+			"createdAt": bson.M{"$gte": time.Now().AddDate(-2, 0, 0)},
+		}}},
 		{{Key: "$sort", Value: bson.D{{Key: "createdAt", Value: 1}}}},
 		{{Key: "$group", Value: bson.M{
 			"_id":             "$userId",
@@ -1086,6 +1092,7 @@ func (s *Service) medianTimeToFirstPurchase(ctx context.Context) float64 {
 				},
 			},
 		}}},
+		{{Key: "$limit", Value: 10000}},
 	}
 
 	cursor, err := s.db.FinancialTransactions().Aggregate(ctx, pipeline)

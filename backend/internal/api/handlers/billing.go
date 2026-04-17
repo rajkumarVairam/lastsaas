@@ -701,14 +701,8 @@ func (h *BillingHandler) AdminListTransactions(w http.ResponseWriter, r *http.Re
 			filter["tenantId"] = oid
 		}
 	}
-	if search := q.Get("search"); search != "" {
-		escaped := escapeRegexInput(search)
-		filter["$or"] = []bson.M{
-			{"description": bson.M{"$regex": escaped, "$options": "i"}},
-			{"invoiceNumber": bson.M{"$regex": escaped, "$options": "i"}},
-			{"planName": bson.M{"$regex": escaped, "$options": "i"}},
-			{"bundleName": bson.M{"$regex": escaped, "$options": "i"}},
-		}
+	if search := strings.TrimSpace(q.Get("search")); search != "" {
+		filter["$text"] = bson.M{"$search": search}
 	}
 
 	total, _ := h.db.FinancialTransactions().CountDocuments(ctx, filter)

@@ -543,10 +543,10 @@ func (h *TenantHandler) GetActivity(w http.ResponseWriter, r *http.Request) {
 
 	filter := bson.M{"tenantId": tenant.ID}
 	if action := r.URL.Query().Get("action"); action != "" {
-		filter["action"] = bson.M{"$regex": escapeRegexInput(action), "$options": "i"}
+		filter["action"] = action
 	}
-	if search := r.URL.Query().Get("search"); search != "" {
-		filter["message"] = bson.M{"$regex": escapeRegexInput(search), "$options": "i"}
+	if search := strings.TrimSpace(r.URL.Query().Get("search")); search != "" {
+		filter["$text"] = bson.M{"$search": search}
 	}
 
 	skip := int64((page - 1) * limit)
