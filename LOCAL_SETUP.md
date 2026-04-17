@@ -80,7 +80,7 @@ To fix this and test end-to-end billing flows locally, you must run the Stripe C
 ```powershell
 # Install the Stripe CLI from Stripe's website if you haven't already.
 # Then, forward webhooks directly to the LastSaaS backend:
-stripe listen --forward-to localhost:4290/api/webhooks/stripe
+stripe listen --forward-to localhost:4290/api/billing/webhook
 ```
 Once this is running in a background terminal, Stripe will successfully ping your local Go backend the exact second a checkout completes, and your plans will instantly activate in the UI.
 

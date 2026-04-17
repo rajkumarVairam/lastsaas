@@ -45,14 +45,27 @@ cd frontend && npm test             # Vitest unit tests
 cd frontend && npx playwright test  # E2E tests
 ```
 
+### Run everything at once
+
+```bash
+cd frontend && npm run dev:all      # Starts backend + frontend + Stripe webhook tunnel together
+```
+
+Individual scripts (if running separately):
+```bash
+cd frontend && npm run dev:backend  # Go backend on :4290
+cd frontend && npm run dev          # Vite frontend on :4280
+cd frontend && npm run dev:stripe   # Stripe webhook tunnel (requires Stripe CLI)
+```
+
+> `dev:stripe` requires the [Stripe CLI](https://stripe.com/docs/stripe-cli) installed. Without it, `dev:all` will still start backend and frontend — only the stripe process will fail.
+
 ### First-time setup
 
 ```bash
 # Backend starts on :4290, frontend on :4280
 cd backend && go run ./cmd/lastsaas setup   # Creates root tenant + admin account
 ```
-
-For Stripe local webhook testing: `stripe listen --forward-to localhost:4290/api/billing/webhook`
 
 ## Architecture
 
