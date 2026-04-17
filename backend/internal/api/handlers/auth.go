@@ -460,7 +460,7 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 			tokenHash := hashToken(req.RefreshToken)
 			if _, err := h.db.RefreshTokens().UpdateMany(r.Context(),
 				bson.M{"tokenHash": tokenHash, "userId": user.ID},
-				bson.M{"$set": bson.M{"isRevoked": true}},
+				bson.M{"$set": bson.M{"isRevoked": true, "expiresAt": time.Now().Add(2 * time.Hour)}},
 			); err != nil {
 				slog.Warn("Failed to revoke refresh token during logout", "error", err)
 			}
@@ -504,7 +504,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		if storedToken.FamilyID != "" {
 			h.db.RefreshTokens().UpdateMany(r.Context(),
 				bson.M{"familyId": storedToken.FamilyID},
-				bson.M{"$set": bson.M{"isRevoked": true}},
+				bson.M{"$set": bson.M{"isRevoked": true, "expiresAt": time.Now().Add(2 * time.Hour)}},
 			)
 			slog.Warn("Security: refresh token replay detected, family revoked", "userId", storedToken.UserID.Hex(), "familyId", storedToken.FamilyID)
 		}
@@ -512,10 +512,10 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Revoke old refresh token
+	// Revoke old refresh token — shorten expiresAt so TTL cleans it in 2h not 7d
 	h.db.RefreshTokens().UpdateOne(r.Context(),
 		bson.M{"_id": storedToken.ID},
-		bson.M{"$set": bson.M{"isRevoked": true}},
+		bson.M{"$set": bson.M{"isRevoked": true, "expiresAt": time.Now().Add(2 * time.Hour)}},
 	)
 
 	userID, err := primitive.ObjectIDFromHex(claims.UserID)
@@ -761,7 +761,7 @@ func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 
 	h.db.RefreshTokens().UpdateMany(r.Context(),
 		bson.M{"userId": token.UserID, "isRevoked": false},
-		bson.M{"$set": bson.M{"isRevoked": true}},
+		bson.M{"$set": bson.M{"isRevoked": true, "expiresAt": time.Now().Add(2 * time.Hour)}},
 	)
 
 	h.syslog.High(r.Context(), fmt.Sprintf("Password reset via token for user %s", token.UserID.Hex()))
@@ -828,7 +828,7 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	// Revoke all active sessions so stolen tokens can't persist after password change
 	if _, err := h.db.RefreshTokens().UpdateMany(r.Context(),
 		bson.M{"userId": user.ID, "isRevoked": false},
-		bson.M{"$set": bson.M{"isRevoked": true}},
+		bson.M{"$set": bson.M{"isRevoked": true, "expiresAt": time.Now().Add(2 * time.Hour)}},
 	); err != nil {
 		slog.Warn("Failed to revoke sessions after password change", "userId", user.ID.Hex(), "error", err)
 	}
@@ -1862,7 +1862,7 @@ func (h *AuthHandler) RevokeAllSessions(w http.ResponseWriter, r *http.Request) 
 			"userId":    user.ID,
 			"isRevoked": false,
 		},
-		bson.M{"$set": bson.M{"isRevoked": true}},
+		bson.M{"$set": bson.M{"isRevoked": true, "expiresAt": time.Now().Add(2 * time.Hour)}},
 	); err != nil {
 		slog.Error("Failed to revoke all sessions", "userId", user.ID.Hex(), "error", err)
 		respondWithError(w, http.StatusInternalServerError, "Failed to revoke sessions")
@@ -2157,7 +2157,7 @@ func storeRefreshToken(r *http.Request, database *db.MongoDB, userID primitive.O
 				var old models.RefreshToken
 				if cursor.Decode(&old) == nil {
 					database.RefreshTokens().UpdateByID(r.Context(), old.ID, bson.M{
-						"$set": bson.M{"isRevoked": true},
+						"$set": bson.M{"isRevoked": true, "expiresAt": time.Now().Add(2 * time.Hour)},
 					})
 				}
 			}

@@ -25,7 +25,23 @@ type Migration struct {
 
 // migrations is the ordered list of all registered migrations.
 // Append only — never remove or reorder existing entries.
-var migrations []Migration
+var migrations = []Migration{
+	{
+		Version:     "1.1.0",
+		Description: "Purge stale revoked refresh tokens — set expiresAt to now so TTL cleans them within 60s",
+		Up: func(ctx context.Context, database *db.MongoDB) error {
+			// Revoked tokens have no value beyond theft-detection, which only needs a 2-hour window.
+			// Prior to this migration they accumulated for the full 7-day token TTL.
+			// Setting expiresAt=now on all existing revoked tokens lets the TTL index clean them
+			// on its next run (every ~60s) without disturbing active sessions.
+			_, err := database.RefreshTokens().UpdateMany(ctx,
+				bson.M{"isRevoked": true},
+				bson.M{"$set": bson.M{"expiresAt": time.Now()}},
+			)
+			return err
+		},
+	},
+}
 
 // migrationRecord is stored in the "migrations" collection to track applied runs.
 type migrationRecord struct {
