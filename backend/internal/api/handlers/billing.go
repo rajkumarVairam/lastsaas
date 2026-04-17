@@ -110,7 +110,7 @@ func (h *BillingHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if req.BillingInterval == "" {
-			req.BillingInterval = "year"
+			req.BillingInterval = "month"
 		}
 		if req.BillingInterval != "month" && req.BillingInterval != "year" {
 			respondWithError(w, http.StatusBadRequest, "billingInterval must be 'month' or 'year'")

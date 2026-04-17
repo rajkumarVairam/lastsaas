@@ -53,7 +53,7 @@ export default function PlanPage() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showWaiverModal, setShowWaiverModal] = useState(false);
   const [pendingWaiverPlan, setPendingWaiverPlan] = useState<Plan | null>(null);
-  const [selectedInterval, setSelectedInterval] = useState<'month' | 'year'>('year');
+  const [selectedInterval, setSelectedInterval] = useState<'month' | 'year'>('month');
   const [searchParams] = useSearchParams();
   const upgradePlanId = searchParams.get('upgrade');
   const [highlightId, setHighlightId] = useState<string | null>(null);
@@ -107,7 +107,7 @@ export default function PlanPage() {
     try {
       const result = await billingApi.checkout({
         planId: plan.id,
-        billingInterval: selectedInterval,
+        billingInterval: hasAnnual ? selectedInterval : 'month',
         removeBillingWaiver,
       });
       if (result.waived) {
