@@ -131,6 +131,7 @@ func main() {
 	appCtx, appCancel := context.WithCancel(context.Background())
 	defer appCancel()
 	cfgStore.StartAutoReload(appCtx, 60*time.Second)
+	cfgStore.WatchChanges(appCtx)
 	slog.Info("Configuration store loaded", "reloadInterval", "60s")
 
 	// Seed plans
