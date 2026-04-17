@@ -164,6 +164,29 @@ Config files: `backend/config/dev.yaml` and `prod.yaml` (gitignored; copy from `
 
 The `.env` file at the project root is auto-loaded by the backend. Key required vars: `DATABASE_NAME`, `MONGODB_URI`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `FRONTEND_URL`.
 
+## Business Model Fit
+
+Quick reference — what's covered out of the box and what requires product work.
+
+### B2C (Consumer)
+- **Covered**: individual subscriptions, social login (Google/GitHub/Microsoft), magic links, MFA, free trials, credit bundles, flat-rate plans
+- **Caveat**: every signup creates a tenant — treat each user's first tenant as their personal workspace, it's invisible to users
+- **Not covered**: App Store / Play Store billing
+
+### B2B SMB (Teams)
+- **Covered**: multi-tenant isolation, team invitations, owner/admin/user RBAC, per-seat pricing, ownership transfer, invoice PDF, Stripe Tax, API keys, outgoing webhooks (19 event types), white-label branding, entitlement gating
+- **Not yet built**: SSO/SAML, SCIM, net-30 invoicing, compliance exports — see `ENTERPRISE_ROADMAP.md` and open `[Enterprise]` issues
+
+### Hybrid PLG (best fit)
+- This is the natural home: free tier → paid plans → per-seat → enterprise upgrade
+- Trial abuse prevention, promotion codes, entitlement middleware, and white-label are all wired for this model
+
+### AI / LLM Products
+- **Covered**: dual credit buckets (subscription allocation + purchased top-ups), usage recording endpoint (`POST /api/usage/record`), entitlement gating per plan tier, API keys for headless access, distributed rate limiting, telemetry SDK (`telemetry.Track()`), MCP server
+- **Credits are a simple integer counter** — not connected to Stripe Metered Billing. Users pre-purchase credits; Stripe does not auto-charge based on actual usage
+- **Not covered**: Stripe Metered Billing, per-token/compute cost tracking, SSE/streaming infrastructure, LLM provider integration (your product code)
+- See `ARCHITECTURAL_ROADMAP.md` for SSE and object storage roadmap items
+
 ## Validation
 
 LastSaaS uses hybrid validation: Go-side (`validate` struct tags via go-playground/validator) and MongoDB JSON Schema (`internal/db/schema.go`).
