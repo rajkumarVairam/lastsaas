@@ -303,6 +303,12 @@ func (m *MongoDB) ensureIndexes() {
 				{Keys: bson.D{{Key: "parentId", Value: 1}}, Options: options.Index().SetSparse(true)},
 			},
 		},
+		{
+			"migrations",
+			[]mongo.IndexModel{
+				{Keys: bson.D{{Key: "version", Value: 1}}, Options: options.Index().SetUnique(true)},
+			},
+		},
 	}
 
 	// Collections where unique index failure is a data integrity risk
@@ -480,4 +486,8 @@ func (m *MongoDB) TelemetryEvents() *mongo.Collection {
 
 func (m *MongoDB) EventDefinitions() *mongo.Collection {
 	return m.Database.Collection("event_definitions")
+}
+
+func (m *MongoDB) Migrations() *mongo.Collection {
+	return m.Database.Collection("migrations")
 }

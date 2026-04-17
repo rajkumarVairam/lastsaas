@@ -54,9 +54,7 @@ func CheckAndMigrate(database *db.MongoDB) {
 }
 
 func runMigrations(database *db.MongoDB, from, to string) {
-	// Placeholder: future migrations will be dispatched here
-	// based on version comparison.
-	slog.Info("Migrations: none registered", "from", from, "to", to)
+	runRegisteredMigrations(database, from, to)
 }
 
 func sendUpgradeMessage(ctx context.Context, database *db.MongoDB, newVersion string) {

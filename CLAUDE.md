@@ -187,6 +187,49 @@ Quick reference — what's covered out of the box and what requires product work
 - **Not covered**: Stripe Metered Billing, per-token/compute cost tracking, SSE/streaming infrastructure, LLM provider integration (your product code)
 - See `ARCHITECTURAL_ROADMAP.md` for SSE and object storage roadmap items
 
+## Database Migrations
+
+Migrations live in `internal/version/migrations.go` as entries in the `migrations` slice.
+
+**Rules:**
+- Append only — never remove or reorder existing entries
+- `Up` must be idempotent: safe to run twice
+- Return an error to abort startup (the runner calls `os.Exit(1)`)
+- Set `Version` to the semver string that introduced the change (e.g. `"1.2.0"`)
+
+**Example:**
+```go
+var migrations = []Migration{
+    {
+        Version:     "1.1.0",
+        Description: "Backfill tenantSlug on existing usage events",
+        Up: func(ctx context.Context, database *db.MongoDB) error {
+            _, err := database.UsageEvents().UpdateMany(ctx,
+                bson.M{"tenantSlug": bson.M{"$exists": false}},
+                []bson.M{{"$set": bson.M{"tenantSlug": ""}}},
+            )
+            return err
+        },
+    },
+}
+```
+
+Applied migrations are recorded in the `migrations` MongoDB collection. The runner skips any version already present, so concurrent nodes never double-apply.
+
+## Tenant Isolation
+
+**Rule:** Every query against a tenant-scoped collection inside a tenant-facing handler (`/api/tenant/*` and `/api/billing/*`) must include `"tenantId": tenant.ID` in the filter.
+
+**Tenant-scoped collections:** `financial_transactions`, `usage_events`, `tenant_memberships`, `invitations`, `audit_log`, `system_logs` (when read by tenant users).
+
+**Why:** The primary enforcement layer is the `ResolveTenant` middleware, which validates that the authenticated user is a member of the requested tenant. The per-query `tenantId` filter is a defense-in-depth layer — it ensures a bug in middleware cannot leak cross-tenant data.
+
+**Audit script:** `scripts/check_tenant_isolation.sh` greps handler files and warns when a query call on a tenant-scoped collection lacks a nearby `tenantId` reference. Run it in CI:
+
+```bash
+bash scripts/check_tenant_isolation.sh
+```
+
 ## Validation
 
 LastSaaS uses hybrid validation: Go-side (`validate` struct tags via go-playground/validator) and MongoDB JSON Schema (`internal/db/schema.go`).
