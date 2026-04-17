@@ -239,6 +239,15 @@ func (m *MongoDB) ensureIndexes() {
 			},
 		},
 		{
+			"webhook_pending_retries",
+			[]mongo.IndexModel{
+				{Keys: bson.D{{Key: "fireAt", Value: 1}}},
+				{Keys: bson.D{{Key: "webhookId", Value: 1}}},
+				// TTL: auto-clean docs older than 7 days (safety net for any unprocessed retries)
+				{Keys: bson.D{{Key: "createdAt", Value: 1}}, Options: options.Index().SetExpireAfterSeconds(7 * 24 * 3600)},
+			},
+		},
+		{
 			"branding_assets",
 			[]mongo.IndexModel{
 				{Keys: bson.D{{Key: "key", Value: 1}}, Options: options.Index().SetUnique(true)},
@@ -438,6 +447,10 @@ func (m *MongoDB) Webhooks() *mongo.Collection {
 
 func (m *MongoDB) WebhookDeliveries() *mongo.Collection {
 	return m.Database.Collection("webhook_deliveries")
+}
+
+func (m *MongoDB) WebhookPendingRetries() *mongo.Collection {
+	return m.Database.Collection("webhook_pending_retries")
 }
 
 func (m *MongoDB) BrandingConfig() *mongo.Collection {

@@ -23,11 +23,12 @@ import (
 
 // retryJob represents a pending webhook retry.
 type retryJob struct {
-	hook      models.Webhook
-	eventType models.WebhookEventType
-	event     events.Event
-	retry     int
-	fireAt    time.Time
+	hook           models.Webhook
+	eventType      models.WebhookEventType
+	event          events.Event
+	retry          int
+	fireAt         time.Time
+	pendingRetryID primitive.ObjectID // non-zero when backed by a webhook_pending_retries doc
 }
 
 // Dispatcher listens for events and fires matching webhooks.
@@ -57,6 +58,12 @@ func NewDispatcher(database *db.MongoDB, encryptionKey []byte) *Dispatcher {
 		emitSem:       make(chan struct{}, 25), // max 25 concurrent Emit dispatches
 	}
 	go d.retryWorker()
+
+	// Re-queue any retries that were pending when the server last shut down.
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	d.recoverPendingRetries(ctx)
+
 	return d
 }
 
@@ -104,9 +111,67 @@ func (d *Dispatcher) retryWorker() {
 						slog.Error("webhooks: dispatch panic", "panic", r, "webhook", j.hook.Name)
 					}
 				}()
+				// Claim: atomically remove the persistent record before attempting delivery.
+				// If the server crashed after persisting but before delivering, the doc is
+				// still here and we claim it now. A new doc is written if this attempt also fails.
+				if !j.pendingRetryID.IsZero() {
+					claimCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					d.db.WebhookPendingRetries().DeleteOne(claimCtx, bson.M{"_id": j.pendingRetryID})
+					cancel()
+				}
 				d.deliverWithRetry(context.Background(), j.hook, j.eventType, j.event, j.retry)
 			}(job)
 		}
+	}
+}
+
+// recoverPendingRetries loads any retries that survived a previous server restart and re-queues them.
+func (d *Dispatcher) recoverPendingRetries(ctx context.Context) {
+	cursor, err := d.db.WebhookPendingRetries().Find(ctx, bson.M{})
+	if err != nil {
+		slog.Error("webhooks: failed to load pending retries on startup", "error", err)
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var pending []models.WebhookPendingRetry
+	if err := cursor.All(ctx, &pending); err != nil {
+		slog.Error("webhooks: failed to decode pending retries on startup", "error", err)
+		return
+	}
+
+	recovered := 0
+	for _, p := range pending {
+		// Re-fetch the webhook in case it was updated or deactivated since the failure.
+		var hook models.Webhook
+		if err := d.db.Webhooks().FindOne(ctx, bson.M{"_id": p.WebhookID, "isActive": true}).Decode(&hook); err != nil {
+			// Webhook deleted or deactivated — drop the pending retry.
+			d.db.WebhookPendingRetries().DeleteOne(ctx, bson.M{"_id": p.ID})
+			continue
+		}
+
+		job := retryJob{
+			hook:      hook,
+			eventType: p.EventType,
+			event: events.Event{
+				Timestamp: p.EventTimestamp,
+				Data:      p.EventData,
+			},
+			retry:          p.RetryCount,
+			fireAt:         p.FireAt,
+			pendingRetryID: p.ID,
+		}
+
+		select {
+		case d.retryQ <- job:
+			recovered++
+		default:
+			slog.Warn("webhooks: retry queue full during recovery, skipping", "pendingRetryId", p.ID.Hex())
+		}
+	}
+
+	if recovered > 0 {
+		slog.Info("webhooks: recovered pending retries from previous run", "count", recovered)
 	}
 }
 
@@ -291,17 +356,38 @@ func (d *Dispatcher) deliverWithRetry(ctx context.Context, hook models.Webhook, 
 	if !delivery.Success {
 		slog.Warn("webhooks: delivery failed", "webhook", hook.Name, "status", delivery.ResponseCode, "retry", retryCount, "max_retries", maxWebhookRetries)
 		if retryCount < maxWebhookRetries {
-			delay := retryDelays[retryCount]
+			fireAt := time.Now().Add(retryDelays[retryCount])
+
+			// Persist to MongoDB so the retry survives a server restart.
+			pendingID := primitive.NewObjectID()
+			pending := models.WebhookPendingRetry{
+				ID:             pendingID,
+				WebhookID:      hook.ID,
+				EventType:      eventType,
+				EventData:      event.Data,
+				EventTimestamp: event.Timestamp,
+				RetryCount:     retryCount + 1,
+				FireAt:         fireAt,
+				CreatedAt:      time.Now(),
+			}
+			persistCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			if _, err := d.db.WebhookPendingRetries().InsertOne(persistCtx, pending); err != nil {
+				slog.Warn("webhooks: failed to persist pending retry", "webhook", hook.Name, "error", err)
+				pendingID = primitive.NilObjectID // don't try to claim a doc that wasn't written
+			}
+			cancel()
+
 			select {
 			case d.retryQ <- retryJob{
-				hook:      hook,
-				eventType: eventType,
-				event:     event,
-				retry:     retryCount + 1,
-				fireAt:    time.Now().Add(delay),
+				hook:           hook,
+				eventType:      eventType,
+				event:          event,
+				retry:          retryCount + 1,
+				fireAt:         fireAt,
+				pendingRetryID: pendingID,
 			}:
 			default:
-				slog.Warn("webhooks: retry queue full, dropping retry", "webhook", hook.Name)
+				slog.Warn("webhooks: retry queue full, retry is persisted and will recover on restart", "webhook", hook.Name)
 			}
 		}
 	}

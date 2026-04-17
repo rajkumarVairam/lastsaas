@@ -105,3 +105,16 @@ type WebhookDelivery struct {
 	MaxRetries   int                `json:"maxRetries" bson:"maxRetries"`
 	CreatedAt    time.Time          `json:"createdAt" bson:"createdAt"`
 }
+
+// WebhookPendingRetry is persisted to MongoDB when a delivery fails and a retry is scheduled.
+// On server restart, these documents are loaded and re-queued so no retry is silently dropped.
+type WebhookPendingRetry struct {
+	ID             primitive.ObjectID     `bson:"_id"`
+	WebhookID      primitive.ObjectID     `bson:"webhookId"`
+	EventType      WebhookEventType       `bson:"eventType"`
+	EventData      map[string]interface{} `bson:"eventData"`
+	EventTimestamp time.Time              `bson:"eventTimestamp"`
+	RetryCount     int                    `bson:"retryCount"`
+	FireAt         time.Time              `bson:"fireAt"`
+	CreatedAt      time.Time              `bson:"createdAt"`
+}
