@@ -299,6 +299,57 @@ func TestValidate_TransactionInvalidType(t *testing.T) {
 	}
 }
 
+func validJob() models.Job {
+	return models.Job{
+		Type:        "scheduled_post",
+		TenantID:    primitive.NewObjectID(),
+		Status:      models.JobStatusPending,
+		RunAt:       time.Now(),
+		MaxAttempts: 5,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+}
+
+func TestValidate_ValidJob(t *testing.T) {
+	j := validJob()
+	if err := Validate(&j); err != nil {
+		t.Errorf("expected valid job to pass: %v", err)
+	}
+}
+
+func TestValidate_JobMissingType(t *testing.T) {
+	j := validJob()
+	j.Type = ""
+	if err := Validate(&j); err == nil {
+		t.Fatal("expected validation error for missing type")
+	}
+}
+
+func TestValidate_JobInvalidStatus(t *testing.T) {
+	j := validJob()
+	j.Status = "unknown"
+	if err := Validate(&j); err == nil {
+		t.Fatal("expected validation error for invalid status")
+	}
+}
+
+func TestValidate_JobMaxAttemptsZero(t *testing.T) {
+	j := validJob()
+	j.MaxAttempts = 0
+	if err := Validate(&j); err == nil {
+		t.Fatal("expected validation error for zero maxAttempts")
+	}
+}
+
+func TestValidate_JobMaxAttemptsExceeded(t *testing.T) {
+	j := validJob()
+	j.MaxAttempts = 21
+	if err := Validate(&j); err == nil {
+		t.Fatal("expected validation error for maxAttempts > 20")
+	}
+}
+
 func TestValidate_ErrorFormatting(t *testing.T) {
 	u := models.User{} // all required fields missing
 	err := Validate(&u)

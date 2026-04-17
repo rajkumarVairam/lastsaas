@@ -321,6 +321,21 @@ func (m *MongoDB) ensureIndexes() {
 				{Keys: bson.D{{Key: "version", Value: 1}}, Options: options.Index().SetUnique(true)},
 			},
 		},
+		{
+			"jobs",
+			[]mongo.IndexModel{
+				// Primary worker poll: find runnable pending jobs sorted by age
+				{Keys: bson.D{{Key: "status", Value: 1}, {Key: "runAt", Value: 1}}},
+				// Stale lock reclaim: find running jobs with expired locks
+				{Keys: bson.D{{Key: "lockedUntil", Value: 1}}, Options: options.Index().SetSparse(true)},
+				// Tenant-facing job list
+				{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "status", Value: 1}, {Key: "createdAt", Value: -1}}},
+				// Filter by type within a tenant
+				{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "type", Value: 1}, {Key: "createdAt", Value: -1}}},
+				// TTL: auto-clean completed/cancelled jobs after 30 days
+				{Keys: bson.D{{Key: "completedAt", Value: 1}}, Options: options.Index().SetSparse(true).SetExpireAfterSeconds(30 * 24 * 3600)},
+			},
+		},
 	}
 
 	// Collections where unique index failure is a data integrity risk
@@ -506,4 +521,8 @@ func (m *MongoDB) EventDefinitions() *mongo.Collection {
 
 func (m *MongoDB) Migrations() *mongo.Collection {
 	return m.Database.Collection("migrations")
+}
+
+func (m *MongoDB) Jobs() *mongo.Collection {
+	return m.Database.Collection("jobs")
 }

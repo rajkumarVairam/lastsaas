@@ -16,10 +16,12 @@ import (
 	"lastsaas/internal/auth"
 	"lastsaas/internal/config"
 	"lastsaas/internal/configstore"
+	"lastsaas/internal/datadog"
 	"lastsaas/internal/db"
 	"lastsaas/internal/email"
 	"lastsaas/internal/events"
 	"lastsaas/internal/health"
+	"lastsaas/internal/jobs"
 	"lastsaas/internal/metrics"
 	"lastsaas/internal/middleware"
 	"lastsaas/internal/models"
@@ -27,7 +29,6 @@ import (
 	stripeservice "lastsaas/internal/stripe"
 	"lastsaas/internal/syslog"
 	"lastsaas/internal/telemetry"
-	"lastsaas/internal/datadog"
 	"lastsaas/internal/version"
 	"lastsaas/internal/webhooks"
 
@@ -373,6 +374,23 @@ func main() {
 	metricsService.Start()
 	defer metricsService.Stop()
 
+	// Initialize job queue
+	// nodeID reuses the same FLY_MACHINE_ID / hostname logic as the health service.
+	jobNodeID := os.Getenv("FLY_MACHINE_ID")
+	if jobNodeID == "" {
+		if h, err := os.Hostname(); err == nil {
+			jobNodeID = h
+		} else {
+			jobNodeID = "unknown"
+		}
+	}
+	jobQueue := jobs.New(database, jobNodeID)
+	// Register product job handlers here, e.g.:
+	//   jobQueue.Register(myjobs.NewScheduledPostHandler(zernioClient))
+	jobQueue.Start(appCtx)
+	defer jobQueue.Stop()
+	jobsHandler := handlers.NewJobsHandler(database, jobQueue)
+
 	// Setup router
 	router := mux.NewRouter()
 
@@ -544,6 +562,13 @@ func main() {
 
 	tenantAPI.HandleFunc("/members", tenantHandler.ListMembers).Methods("GET")
 	tenantAPI.HandleFunc("/activity", tenantHandler.GetActivity).Methods("GET")
+
+	// Job queue routes (tenant-scoped)
+	tenantAPI.HandleFunc("/jobs", jobsHandler.ListJobs).Methods("GET")
+	tenantAPI.HandleFunc("/jobs", jobsHandler.EnqueueJob).Methods("POST")
+	tenantAPI.HandleFunc("/jobs/{jobId}", jobsHandler.GetJob).Methods("GET")
+	tenantAPI.HandleFunc("/jobs/{jobId}", jobsHandler.CancelJob).Methods("DELETE")
+	tenantAPI.HandleFunc("/jobs/{jobId}/retry", jobsHandler.RetryJob).Methods("POST")
 
 	// Tenant settings (owner only)
 	tenantSettingsRouter := tenantAPI.PathPrefix("/settings").Subrouter()

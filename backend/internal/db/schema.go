@@ -14,7 +14,7 @@ type CollectionSchema struct {
 	Schema     bson.M
 }
 
-// AllSchemas returns the JSON Schema validators for all 15 validated collections.
+// AllSchemas returns the JSON Schema validators for all validated collections.
 func AllSchemas() []CollectionSchema {
 	return []CollectionSchema{
 		usersSchema(),
@@ -33,6 +33,7 @@ func AllSchemas() []CollectionSchema {
 		usageEventsSchema(),
 		ssoConnectionsSchema(),
 		eventDefinitionsSchema(),
+		jobsSchema(),
 	}
 }
 
@@ -584,6 +585,46 @@ func ssoConnectionsSchema() CollectionSchema {
 					},
 					"idpCertificate": bson.M{
 						"bsonType": "string",
+					},
+					"createdAt": bson.M{
+						"bsonType": "date",
+					},
+					"updatedAt": bson.M{
+						"bsonType": "date",
+					},
+				},
+			},
+		},
+	}
+}
+
+func jobsSchema() CollectionSchema {
+	return CollectionSchema{
+		Collection: "jobs",
+		Schema: bson.M{
+			"$jsonSchema": bson.M{
+				"bsonType": "object",
+				"required": bson.A{"type", "tenantId", "status", "maxAttempts", "runAt", "createdAt", "updatedAt"},
+				"properties": bson.M{
+					"type": bson.M{
+						"bsonType":  "string",
+						"minLength": 1,
+						"maxLength": 100,
+					},
+					"tenantId": bson.M{
+						"bsonType": "objectId",
+					},
+					"status": bson.M{
+						"bsonType": "string",
+						"enum":     bson.A{"pending", "running", "completed", "failed", "dead", "cancelled"},
+					},
+					"maxAttempts": bson.M{
+						"bsonType": "int",
+						"minimum":  1,
+						"maximum":  20,
+					},
+					"runAt": bson.M{
+						"bsonType": "date",
 					},
 					"createdAt": bson.M{
 						"bsonType": "date",
