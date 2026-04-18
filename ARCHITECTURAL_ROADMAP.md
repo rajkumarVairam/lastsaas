@@ -4,57 +4,70 @@ While the application handles business logic (auth, billing, multitenancy) effic
 
 ---
 
-## Priority 1: Object Storage (S3 / R2)
+## ✅ Priority 1: Object Storage (R2 / S3) — COMPLETED
 
-**Problem:** 
-The application currently lacks a unified, scalable way to store and retrieve large files (e.g., user uploads, CSV imports, generated PDFs, avatars). Storing binary data in MongoDB or on local disk in ephemeral containers is an anti-pattern.
+**Shipped:** `d824272`
 
-**Solution:**
-- Implement a generic Blob Storage interface in Go.
-- Integrate the AWS SDK for Go.
-- Standardize on Cloudflare R2 (for zero egress fees) or AWS S3.
-- Build secure presigned-URL flows so the React frontend can securely upload files directly to the storage bucket without routing heavy byte-streams through the Go backend.
+A provider-agnostic `Store` interface (`Put`, `Delete`, `PresignGet`, `Ping`) supports Cloudflare R2, AWS S3, and a MongoDB db-fallback for zero-config local dev. Switching providers requires only a config change — no code changes.
 
----
+- `BrandingAsset` (public): logo, favicon, media library served via CDN URL with 301 redirect. Legacy MongoDB blobs still served for backward compatibility.
+- `Document` (private): per-tenant file storage namespaced as `documents/{tenantId}/{docId}`. Download via 15-minute presigned GET (302). Visibility control: `tenant` (all members) or `owner` (uploader only).
+- `Store.Ping()` wired into the health integration dashboard — misconfigured credentials surface at startup.
+- AWS SDK v2 used for both R2 and S3 (same code, different endpoint).
 
-## Priority 2: Durable Background Jobs & Queues (Redis)
-
-**Problem:**
-Right now, asynchronous tasks (sending emails, webhook dispatching) likely execute in simple Goroutines (`go sendEmail()`). If the server reboots during execution, tasks are permanently lost. Additionally, offering intensive features (e.g., data crunching, AI processing) will cause synchronous HTTP requests to time out.
-
-**Solution:**
-- Introduce **Redis** to the infrastructure diagram.
-- Implement a durable task queue worker using the `Asynq` package in Go.
-- Decouple heavy processing from the web HTTP handlers to ensure the frontend remains snappy and fail-safe retries (exponential backoff) are guaranteed for API limits.
+**Not yet built:** presigned PUT for direct browser-to-bucket uploads (bypasses server for large files). Tracked in #22 (Document UI) when large file support becomes necessary.
 
 ---
 
-## Priority 3: Distributed Caching & Rate Limiting
+## ✅ Priority 2: Durable Background Jobs — COMPLETED
 
-**Problem:**
-As we scale to multiple server nodes spread across geographic regions, in-memory caching (using standard Go maps) becomes disjointed. An API rate limit applied to Server A is unaware of traffic hitting Server B.
+**Shipped:** `5a69ad6`
 
-**Solution:**
-- Centralize temporary state configuration, session lookup caching, and rate limit counters in **Redis**.
-- This enables rapid responses for heavy database aggregate queries and prevents abuse across the entire server cluster simultaneously.
+Implemented without Redis — a MongoDB-backed job queue with the same durability and reliability guarantees, with no additional infrastructure dependency.
 
----
+- Atomic `findOneAndUpdate` claim prevents double-execution across concurrent workers
+- N-worker pool (default 5) with per-job 4-minute execution timeout
+- Exponential backoff on retry: 30s base → 1h ceiling
+- Stale lock reclaim on startup and every 5 minutes (crash recovery)
+- `Handler` interface (`Type() string`, `Execute(ctx, job) error`) — product job types registered at startup
+- Full REST API: list, enqueue, get, cancel, retry (`/api/tenant/jobs/*`)
+- 30-day TTL index auto-cleans completed/cancelled jobs
 
-## Priority 4: WebSockets or Server-Sent Events (SSE)
-
-**Problem:**
-Once Background Queues (Priority 2) are implemented, the frontend will need to know when long-running tasks are finished. Polling the database every 2 seconds via standard HTTP is inefficient and drains database resources.
-
-**Solution:**
-- Implement a Server-Sent Events (SSE) dispatcher in the Go backend.
-- Hook standard React state models to SSE listeners to push notifications or progress bar updates natively.
+Ideal for social media scheduling, async AI processing, PDF generation, data exports.
 
 ---
 
-## Priority 5: Distributed Cron / Scheduled Tasks
+## ✅ Priority 3: Distributed Rate Limiting — COMPLETED
+
+**Status:** Already in the codebase via `internal/middleware` — MongoDB-backed distributed rate limiter using atomic counters. Rate limit state is shared across all nodes; a request hitting Node A counts against the same bucket as a request hitting Node B.
+
+**Not yet built:** query-result caching for heavy aggregation pipelines (PM analytics, usage dashboards). These are bounded and indexed (#12, #14 fixed) but not cached. Add when query latency becomes measurable.
+
+---
+
+## Priority 4: Server-Sent Events (SSE) — PENDING
+
+**GitHub:** [#20](https://github.com/rajkumarVairam/lastsaas/issues/20)
 
 **Problem:**
-There is no durable mechanism for running tasks at exact times globally across a multi-node deployment without race conditions (e.g., "Clean up inactive trial accounts every midnight"). 
+The job queue (Priority 2) runs tasks durably, but the frontend has no push channel to know when a long-running job finishes. Polling `/api/tenant/jobs/{id}` every few seconds works but wastes DB reads and adds latency.
 
 **Solution:**
-- Utilize the clustered Redis queue architecture to maintain a global schedule capable of handling timezone-specific execution guarantees.
+- Implement an SSE dispatcher in the Go backend (`GET /api/tenant/events/stream`)
+- Push `job.completed`, `job.failed`, and custom product events over the stream
+- React hooks subscribe to the stream and update UI state without polling
+
+This is the natural complement to the job queue for real-time UX (progress bars, live status updates, notification toasts).
+
+---
+
+## Priority 5: Recurring Scheduled Tasks (Cron) — PARTIAL
+
+**Status:** The job queue supports `runAt` for deferred single-shot execution. True recurring schedules (e.g. "run every midnight", "run every Monday at 9am") require a separate mechanism to re-enqueue jobs on a schedule.
+
+**What's needed:**
+- A `CronSchedule` model storing the recurrence rule (cron expression or interval), job type, and payload template
+- A leader-elected goroutine that evaluates due schedules and calls `queue.Enqueue()` — the existing `LeaderLocks` collection already provides the leader election primitive
+- Admin API to create/pause/delete schedules
+
+This avoids Redis entirely by reusing the existing job queue and MongoDB leader lock — consistent with the approach taken for Priority 2.
