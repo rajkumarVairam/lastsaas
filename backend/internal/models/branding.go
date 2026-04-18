@@ -65,15 +65,23 @@ type BrandingConfig struct {
 	UpdatedAt time.Time `json:"updatedAt" bson:"updatedAt"`
 }
 
-// BrandingAsset stores binary assets (logo, favicon, etc.).
+// BrandingAsset stores metadata for uploaded files (logo, favicon, media library).
+// New uploads set URL + StorageKey and leave Data empty (stored in object store).
+// Legacy docs (uploaded before object store was configured) have Data set and URL empty
+// — the serve handler detects this and streams from the DB for backward compatibility.
 type BrandingAsset struct {
-	ID          primitive.ObjectID `json:"id" bson:"_id,omitempty"`
-	Key         string             `json:"key" bson:"key"`                 // "logo", "favicon", or unique media ID
-	Filename    string             `json:"filename" bson:"filename"`
+	ID          primitive.ObjectID `json:"id"          bson:"_id,omitempty"`
+	Key         string             `json:"key"         bson:"key"`          // "logo", "favicon", or unique media ID
+	Filename    string             `json:"filename"    bson:"filename"`
 	ContentType string             `json:"contentType" bson:"contentType"`
-	Data        []byte             `json:"-" bson:"data"`
-	Size        int64              `json:"size" bson:"size"`
-	CreatedAt   time.Time          `json:"createdAt" bson:"createdAt"`
+	Size        int64              `json:"size"        bson:"size"`
+	// Object store fields — set when provider != "db"
+	URL         string             `json:"url,omitempty"        bson:"url,omitempty"`
+	StorageKey  string             `json:"storageKey,omitempty" bson:"storageKey,omitempty"`
+	// Legacy: only present on docs uploaded before object store was configured.
+	// omitempty ensures new documents don't carry an empty byte slice.
+	Data        []byte             `json:"-"           bson:"data,omitempty"`
+	CreatedAt   time.Time          `json:"createdAt"   bson:"createdAt"`
 }
 
 // CustomPage stores user-created pages with arbitrary HTML content.

@@ -41,3 +41,13 @@ datadog:
   api_key: ${DATADOG_API_KEY}
   site: ${DATADOG_SITE:us5.datadoghq.com}
   hostname: ${DATADOG_HOSTNAME}
+
+# Object storage for uploaded files (logos, media, post images).
+objectstore:
+  provider: ${OBJECTSTORE_PROVIDER}
+  access_key: ${OBJECTSTORE_ACCESS_KEY}
+  secret_key: ${OBJECTSTORE_SECRET_KEY}
+  bucket: ${OBJECTSTORE_BUCKET}
+  public_url: ${OBJECTSTORE_PUBLIC_URL}
+  account_id: ${OBJECTSTORE_ACCOUNT_ID}
+  region: ${OBJECTSTORE_REGION}

@@ -11,6 +11,7 @@ import (
 	"lastsaas/internal/configstore"
 	"lastsaas/internal/db"
 	"lastsaas/internal/models"
+	"lastsaas/internal/objectstore"
 	"lastsaas/internal/syslog"
 
 	"github.com/gorilla/mux"
@@ -28,11 +29,14 @@ type BrandingHandler struct {
 	store         *configstore.Store
 	syslog        *syslog.Logger
 	authProviders map[string]bool
+	objStore      objectstore.Store
 }
 
 func NewBrandingHandler(database *db.MongoDB, store *configstore.Store, sysLogger *syslog.Logger) *BrandingHandler {
 	return &BrandingHandler{db: database, store: store, syslog: sysLogger}
 }
+
+func (h *BrandingHandler) SetObjectStore(s objectstore.Store) { h.objStore = s }
 
 func (h *BrandingHandler) SetAuthProviders(providers map[string]bool) { h.authProviders = providers }
 
@@ -52,16 +56,28 @@ func (h *BrandingHandler) GetBranding(w http.ResponseWriter, r *http.Request) {
 
 	analyticsSnippet := h.store.Get("analytics.head_snippet")
 
-	// Build logo/favicon URLs if assets exist
+	// Build logo/favicon URLs if assets exist.
+	// Project out `data` — we only need the URL field, not the binary blob.
+	// When stored in R2/S3 the CDN URL is returned directly (zero server hops).
+	// Legacy MongoDB-stored assets fall back to the /asset proxy endpoint.
+	metaOnly := options.FindOne().SetProjection(bson.M{"data": 0})
 	logoURL := ""
 	faviconURL := ""
 	var logoAsset models.BrandingAsset
-	if err := h.db.BrandingAssets().FindOne(r.Context(), bson.M{"key": "logo"}).Decode(&logoAsset); err == nil {
-		logoURL = "/api/branding/asset/logo"
+	if err := h.db.BrandingAssets().FindOne(r.Context(), bson.M{"key": "logo"}, metaOnly).Decode(&logoAsset); err == nil {
+		if logoAsset.URL != "" {
+			logoURL = logoAsset.URL
+		} else {
+			logoURL = "/api/branding/asset/logo"
+		}
 	}
 	var favAsset models.BrandingAsset
-	if err := h.db.BrandingAssets().FindOne(r.Context(), bson.M{"key": "favicon"}).Decode(&favAsset); err == nil {
-		faviconURL = "/api/branding/asset/favicon"
+	if err := h.db.BrandingAssets().FindOne(r.Context(), bson.M{"key": "favicon"}, metaOnly).Decode(&favAsset); err == nil {
+		if favAsset.URL != "" {
+			faviconURL = favAsset.URL
+		} else {
+			faviconURL = "/api/branding/asset/favicon"
+		}
 	}
 
 	// Build auth providers from static config + runtime config store
@@ -107,32 +123,23 @@ func (h *BrandingHandler) GetBranding(w http.ResponseWriter, r *http.Request) {
 }
 
 // ServeAsset serves a branding asset (logo, favicon) by key.
+// If the asset is stored in an object store it redirects to the CDN URL (permanent,
+// cached by browsers). Legacy assets stored in MongoDB are streamed directly.
 func (h *BrandingHandler) ServeAsset(w http.ResponseWriter, r *http.Request) {
 	key := mux.Vars(r)["key"]
 	if key != "logo" && key != "favicon" {
 		http.NotFound(w, r)
 		return
 	}
-
-	var asset models.BrandingAsset
-	err := h.db.BrandingAssets().FindOne(r.Context(), bson.M{"key": key}).Decode(&asset)
-	if err == mongo.ErrNoDocuments {
-		http.NotFound(w, r)
-		return
-	} else if err != nil {
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", asset.ContentType)
-	w.Header().Set("Cache-Control", "public, max-age=3600")
-	w.Write(asset.Data)
+	h.serveAssetByKey(w, r, key)
 }
 
 // ServeMedia serves a media library file by ID.
 func (h *BrandingHandler) ServeMedia(w http.ResponseWriter, r *http.Request) {
-	key := mux.Vars(r)["id"]
+	h.serveAssetByKey(w, r, mux.Vars(r)["id"])
+}
 
+func (h *BrandingHandler) serveAssetByKey(w http.ResponseWriter, r *http.Request, key string) {
 	var asset models.BrandingAsset
 	err := h.db.BrandingAssets().FindOne(r.Context(), bson.M{"key": key}).Decode(&asset)
 	if err == mongo.ErrNoDocuments {
@@ -143,8 +150,17 @@ func (h *BrandingHandler) ServeMedia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Object store path: redirect to CDN. Browsers cache the redirect and go
+	// directly to the CDN on subsequent requests — this server is out of the loop.
+	if asset.URL != "" {
+		http.Redirect(w, r, asset.URL, http.StatusMovedPermanently)
+		return
+	}
+
+	// Legacy path: asset was uploaded before object store was configured.
+	// Stream from MongoDB with cache headers so at least repeat requests are cheap.
 	w.Header().Set("Content-Type", asset.ContentType)
-	w.Header().Set("Cache-Control", "public, max-age=3600")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
 	w.Write(asset.Data)
 }
 
@@ -296,21 +312,38 @@ func (h *BrandingHandler) UploadAsset(w http.ResponseWriter, r *http.Request) {
 	if contentType == "" {
 		contentType = http.DetectContentType(data)
 	}
-
-	// Validate image types
 	if !strings.HasPrefix(contentType, "image/") {
 		respondWithError(w, http.StatusBadRequest, "Only image files are allowed for logo/favicon")
 		return
 	}
 
-	now := time.Now()
 	asset := models.BrandingAsset{
 		Key:         key,
 		Filename:    header.Filename,
 		ContentType: contentType,
-		Data:        data,
 		Size:        int64(len(data)),
-		CreatedAt:   now,
+		CreatedAt:   time.Now(),
+	}
+
+	publicURL := fmt.Sprintf("/api/branding/asset/%s", key)
+
+	if h.objStore != nil && h.objStore.Provider() != "db" {
+		// Delete the old object from the store before replacing it (logo/favicon are upserted).
+		var old models.BrandingAsset
+		if dbErr := h.db.BrandingAssets().FindOne(r.Context(), bson.M{"key": key}).Decode(&old); dbErr == nil && old.StorageKey != "" {
+			_ = h.objStore.Delete(r.Context(), old.StorageKey)
+		}
+		storageKey := fmt.Sprintf("branding/%s", key)
+		url, storeErr := h.objStore.Put(r.Context(), storageKey, data, contentType)
+		if storeErr != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to upload asset to storage")
+			return
+		}
+		asset.URL = url
+		asset.StorageKey = storageKey
+		publicURL = url
+	} else {
+		asset.Data = data
 	}
 
 	opts := options.Update().SetUpsert(true)
@@ -326,7 +359,7 @@ func (h *BrandingHandler) UploadAsset(w http.ResponseWriter, r *http.Request) {
 		"filename":    header.Filename,
 		"contentType": contentType,
 		"size":        len(data),
-		"url":         fmt.Sprintf("/api/branding/asset/%s", key),
+		"url":         publicURL,
 	})
 }
 
@@ -336,6 +369,13 @@ func (h *BrandingHandler) DeleteAsset(w http.ResponseWriter, r *http.Request) {
 	if key != "logo" && key != "favicon" {
 		respondWithError(w, http.StatusBadRequest, "Key must be 'logo' or 'favicon'")
 		return
+	}
+
+	var asset models.BrandingAsset
+	if err := h.db.BrandingAssets().FindOne(r.Context(), bson.M{"key": key}).Decode(&asset); err == nil {
+		if h.objStore != nil && asset.StorageKey != "" {
+			_ = h.objStore.Delete(r.Context(), asset.StorageKey)
+		}
 	}
 
 	_, err := h.db.BrandingAssets().DeleteOne(r.Context(), bson.M{"key": key})
@@ -384,13 +424,17 @@ func (h *BrandingHandler) ListMedia(w http.ResponseWriter, r *http.Request) {
 	}
 	items := make([]mediaItem, len(assets))
 	for i, a := range assets {
+		mediaURL := a.URL
+		if mediaURL == "" {
+			mediaURL = fmt.Sprintf("/api/branding/media/%s", a.Key)
+		}
 		items[i] = mediaItem{
 			ID:          a.ID.Hex(),
 			Key:         a.Key,
 			Filename:    a.Filename,
 			ContentType: a.ContentType,
 			Size:        a.Size,
-			URL:         fmt.Sprintf("/api/branding/media/%s", a.Key),
+			URL:         mediaURL,
 			CreatedAt:   a.CreatedAt.Format(time.RFC3339),
 		}
 	}
@@ -435,19 +479,32 @@ func (h *BrandingHandler) UploadMedia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate unique key from ID
 	id := primitive.NewObjectID()
-	key := fmt.Sprintf("media_%s", id.Hex())
+	storageKey := fmt.Sprintf("media_%s", id.Hex())
 
-	now := time.Now()
 	asset := models.BrandingAsset{
 		ID:          id,
-		Key:         key,
+		Key:         storageKey,
 		Filename:    header.Filename,
 		ContentType: contentType,
-		Data:        data,
 		Size:        int64(len(data)),
-		CreatedAt:   now,
+		CreatedAt:   time.Now(),
+	}
+
+	publicURL := fmt.Sprintf("/api/branding/media/%s", storageKey)
+
+	if h.objStore != nil && h.objStore.Provider() != "db" {
+		objKey := fmt.Sprintf("media/%s", storageKey)
+		url, storeErr := h.objStore.Put(r.Context(), objKey, data, contentType)
+		if storeErr != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to upload media to storage")
+			return
+		}
+		asset.URL = url
+		asset.StorageKey = objKey
+		publicURL = url
+	} else {
+		asset.Data = data
 	}
 
 	_, err = h.db.BrandingAssets().InsertOne(r.Context(), asset)
@@ -459,11 +516,11 @@ func (h *BrandingHandler) UploadMedia(w http.ResponseWriter, r *http.Request) {
 	h.syslog.Low(r.Context(), fmt.Sprintf("Media uploaded: %s (%s, %d bytes)", header.Filename, contentType, len(data)))
 	respondWithJSON(w, http.StatusOK, map[string]interface{}{
 		"id":          id.Hex(),
-		"key":         key,
+		"key":         storageKey,
 		"filename":    header.Filename,
 		"contentType": contentType,
 		"size":        len(data),
-		"url":         fmt.Sprintf("/api/branding/media/%s", key),
+		"url":         publicURL,
 	})
 }
 
@@ -475,6 +532,14 @@ func (h *BrandingHandler) DeleteMedia(w http.ResponseWriter, r *http.Request) {
 	if key == "logo" || key == "favicon" {
 		respondWithError(w, http.StatusBadRequest, "Use the asset endpoint to manage logo/favicon")
 		return
+	}
+
+	// Look up asset first so we can delete from the object store if needed.
+	var asset models.BrandingAsset
+	if err := h.db.BrandingAssets().FindOne(r.Context(), bson.M{"key": key}).Decode(&asset); err == nil {
+		if h.objStore != nil && asset.StorageKey != "" {
+			_ = h.objStore.Delete(r.Context(), asset.StorageKey)
+		}
 	}
 
 	result, err := h.db.BrandingAssets().DeleteOne(r.Context(), bson.M{"key": key})

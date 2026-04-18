@@ -261,6 +261,15 @@ func NewSAMLChecker() IntegrationChecker {
 	}
 }
 
+// NewObjectStoreChecker returns a checker that verifies bucket connectivity and credentials.
+// Pass checker=nil (by registering with checker=nil) when provider is "db" — it will be
+// shown as "Not configured" in the dashboard, which is correct for local dev.
+func NewObjectStoreChecker(store interface{ Ping(context.Context) error }) IntegrationChecker {
+	return func(ctx context.Context) error {
+		return store.Ping(ctx)
+	}
+}
+
 // NewDataDogChecker returns a checker that validates the DataDog API key.
 func NewDataDogChecker(validator interface{ Validate(ctx context.Context) error }) IntegrationChecker {
 	return func(ctx context.Context) error {

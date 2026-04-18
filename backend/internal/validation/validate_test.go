@@ -422,6 +422,24 @@ func TestValidate_ValidEventDefinition(t *testing.T) {
 	}
 }
 
+func TestValidate_ValidDocument(t *testing.T) {
+	tenantID := primitive.NewObjectID()
+	ownerID := primitive.NewObjectID()
+	d := models.Document{
+		TenantID:    tenantID,
+		OwnerID:     ownerID,
+		Filename:    "tax_return_2024.pdf",
+		ContentType: "application/pdf",
+		Size:        204800,
+		Visibility:  models.DocumentVisibilityTenant,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+	if err := Validate(&d); err != nil {
+		t.Errorf("expected valid document to pass: %v", err)
+	}
+}
+
 func TestValidate_ErrorFormatting(t *testing.T) {
 	u := models.User{} // all required fields missing
 	err := Validate(&u)

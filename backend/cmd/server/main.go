@@ -25,6 +25,7 @@ import (
 	"lastsaas/internal/metrics"
 	"lastsaas/internal/middleware"
 	"lastsaas/internal/models"
+	"lastsaas/internal/objectstore"
 	"lastsaas/internal/planstore"
 	stripeservice "lastsaas/internal/stripe"
 	"lastsaas/internal/syslog"
@@ -259,6 +260,14 @@ func main() {
 	defer rateLimiter.Stop()
 	metricsCollector := middleware.NewMetricsCollector()
 
+	// Initialize object store (R2, S3, or DB fallback for local dev).
+	objStore, err := objectstore.New(cfg.ObjectStore)
+	if err != nil {
+		slog.Error("failed to initialize object store", "err", err)
+		os.Exit(1)
+	}
+	slog.Info("object store initialized", "provider", objStore.Provider())
+
 	// Initialize health monitoring
 	healthService := health.New(database, metricsCollector, cfgStore.Get)
 
@@ -303,6 +312,13 @@ func main() {
 		healthService.RegisterIntegration("datadog", health.NewDataDogChecker(ddClient))
 	} else {
 		healthService.RegisterIntegration("datadog", nil)
+	}
+
+	// Object store: show as healthy when configured (r2/s3), not-configured for local db fallback.
+	if objStore.Provider() != "db" {
+		healthService.RegisterIntegration("object_store", health.NewObjectStoreChecker(objStore))
+	} else {
+		healthService.RegisterIntegration("object_store", nil)
 	}
 
 	if ddClient != nil {
@@ -363,6 +379,9 @@ func main() {
 	brandingHandler := handlers.NewBrandingHandler(database, cfgStore, sysLogger)
 	announcementsHandler := handlers.NewAnnouncementsHandler(database, sysLogger)
 	usageHandler := handlers.NewUsageHandler(database)
+
+	brandingHandler.SetObjectStore(objStore)
+
 	brandingHandler.SetAuthProviders(map[string]bool{
 		"google":    googleOAuth != nil,
 		"github":    githubOAuth != nil,
@@ -390,6 +409,7 @@ func main() {
 	jobQueue.Start(appCtx)
 	defer jobQueue.Stop()
 	jobsHandler := handlers.NewJobsHandler(database, jobQueue)
+	documentsHandler := handlers.NewDocumentsHandler(database, objStore, sysLogger)
 
 	// Setup router
 	router := mux.NewRouter()
@@ -569,6 +589,13 @@ func main() {
 	tenantAPI.HandleFunc("/jobs/{jobId}", jobsHandler.GetJob).Methods("GET")
 	tenantAPI.HandleFunc("/jobs/{jobId}", jobsHandler.CancelJob).Methods("DELETE")
 	tenantAPI.HandleFunc("/jobs/{jobId}/retry", jobsHandler.RetryJob).Methods("POST")
+
+	// Document storage routes (tenant-scoped, private files)
+	tenantAPI.HandleFunc("/documents", documentsHandler.ListDocuments).Methods("GET")
+	tenantAPI.HandleFunc("/documents", documentsHandler.UploadDocument).Methods("POST")
+	tenantAPI.HandleFunc("/documents/{id}", documentsHandler.GetDocument).Methods("GET")
+	tenantAPI.HandleFunc("/documents/{id}", documentsHandler.DeleteDocument).Methods("DELETE")
+	tenantAPI.HandleFunc("/documents/{id}/download", documentsHandler.DownloadDocument).Methods("GET")
 
 	// Tenant settings (owner only)
 	tenantSettingsRouter := tenantAPI.PathPrefix("/settings").Subrouter()

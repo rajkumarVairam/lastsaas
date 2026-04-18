@@ -34,6 +34,7 @@ func AllSchemas() []CollectionSchema {
 		ssoConnectionsSchema(),
 		eventDefinitionsSchema(),
 		jobsSchema(),
+		documentsSchema(),
 	}
 }
 
@@ -632,6 +633,43 @@ func jobsSchema() CollectionSchema {
 					"updatedAt": bson.M{
 						"bsonType": "date",
 					},
+				},
+			},
+		},
+	}
+}
+
+func documentsSchema() CollectionSchema {
+	return CollectionSchema{
+		Collection: "documents",
+		Schema: bson.M{
+			"$jsonSchema": bson.M{
+				"bsonType": "object",
+				"required": bson.A{"tenantId", "ownerId", "filename", "contentType", "size", "visibility", "createdAt", "updatedAt"},
+				"properties": bson.M{
+					"tenantId": bson.M{"bsonType": "objectId"},
+					"ownerId":  bson.M{"bsonType": "objectId"},
+					"filename": bson.M{
+						"bsonType":  "string",
+						"minLength": 1,
+						"maxLength": 500,
+					},
+					"contentType": bson.M{
+						"bsonType":  "string",
+						"minLength": 1,
+						"maxLength": 200,
+					},
+					"size": bson.M{
+						"bsonType": "long",
+						"minimum":  1,
+					},
+					"visibility": bson.M{
+						"bsonType": "string",
+						"enum":     bson.A{"tenant", "owner"},
+					},
+					"storageKey": bson.M{"bsonType": "string"},
+					"createdAt":  bson.M{"bsonType": "date"},
+					"updatedAt":  bson.M{"bsonType": "date"},
 				},
 			},
 		},

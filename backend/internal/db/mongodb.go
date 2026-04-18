@@ -336,6 +336,15 @@ func (m *MongoDB) ensureIndexes() {
 				{Keys: bson.D{{Key: "completedAt", Value: 1}}, Options: options.Index().SetSparse(true).SetExpireAfterSeconds(30 * 24 * 3600)},
 			},
 		},
+		{
+			"documents",
+			[]mongo.IndexModel{
+				// Primary list query: tenant's documents newest-first
+				{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "createdAt", Value: -1}}},
+				// Owner-filtered list (My Documents)
+				{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "ownerId", Value: 1}, {Key: "createdAt", Value: -1}}},
+			},
+		},
 	}
 
 	// Collections where unique index failure is a data integrity risk
@@ -525,4 +534,8 @@ func (m *MongoDB) Migrations() *mongo.Collection {
 
 func (m *MongoDB) Jobs() *mongo.Collection {
 	return m.Database.Collection("jobs")
+}
+
+func (m *MongoDB) Documents() *mongo.Collection {
+	return m.Database.Collection("documents")
 }

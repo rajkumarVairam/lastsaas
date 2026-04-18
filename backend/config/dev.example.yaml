@@ -40,3 +40,17 @@ datadog:
   api_key: ${DATADOG_API_KEY}
   site: ${DATADOG_SITE:us5.datadoghq.com}
   hostname: ${DATADOG_HOSTNAME}
+
+# Object storage for uploaded files (logos, media, post images).
+# Omit provider or set to "db" to store files in MongoDB (local dev default).
+# For production, use "r2" (Cloudflare R2) or "s3" (AWS S3).
+objectstore:
+  provider: ${OBJECTSTORE_PROVIDER:db}
+  access_key: ${OBJECTSTORE_ACCESS_KEY}
+  secret_key: ${OBJECTSTORE_SECRET_KEY}
+  bucket: ${OBJECTSTORE_BUCKET}
+  public_url: ${OBJECTSTORE_PUBLIC_URL}
+  # R2 only: your Cloudflare account ID
+  account_id: ${OBJECTSTORE_ACCOUNT_ID}
+  # S3 only: AWS region (e.g. "us-east-1")
+  region: ${OBJECTSTORE_REGION}

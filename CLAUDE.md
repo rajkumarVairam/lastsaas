@@ -129,6 +129,10 @@ r.Handle("/api/some/endpoint",
 - `RequireActiveBilling(db)` — blocks expired subscriptions from paid features
 - `RequireEntitlement(db, "key")` — gates on plan entitlement
 
+### API Documentation
+
+`internal/api/handlers/docs.go` contains the hand-authored `apiReference()` function that powers `/api/docs`. **Every new route group must be added here** — it does not auto-discover routes. The structure is: add a new `apiSection` block with `Title` and `Endpoints` slice before the `"System"` section.
+
 ### Adding a New Feature (Pattern)
 
 1. **Model**: Add struct to `internal/models/`, add `validate` tags, update `internal/db/schema.go`, add test in `internal/validation/validate_test.go`
@@ -256,6 +260,30 @@ Always verify after changes:
 cd backend && go build ./...
 cd frontend && npx tsc --noEmit
 ```
+
+## Adding a New External Dependency (Rule)
+
+Every new external service wired in `cmd/server/main.go` **must** have a health checker registered before the server starts. This surfaces misconfiguration (wrong credentials, unreachable endpoint) immediately at startup rather than silently at the first user request.
+
+Pattern:
+1. Add a `NewXxxChecker(...)` factory to `internal/health/integrations.go`
+2. Register it in `main.go` alongside the other `RegisterIntegration` calls — use `nil` when not configured so it shows as "Not configured" in the dashboard rather than missing entirely
+3. If the dependency has a per-request client (like `objectstore.Store`), add a `Ping(ctx) error` method to its interface so the checker can call it without coupling the health package to the implementation
+
+**Why:** The pattern used for Stripe, Resend, DataDog, and OAuth providers was not applied to object storage when it was first added, meaning a misconfigured R2 bucket was invisible until the first file upload failed in production. This rule closes that gap.
+
+## Object Storage
+
+Files fall into two categories — choose the right model:
+
+| Category | Model | Access | Handler pattern |
+|---|---|---|---|
+| Public assets (logo, favicon, social post images) | `BrandingAsset` | CDN URL or proxy | `ServeAsset` → 301 to CDN |
+| Private tenant files (documents, client uploads) | `Document` | Presigned GET (15 min) | `DownloadDocument` → 302 presigned |
+
+Storage keys are namespaced: `branding/{key}` for public assets, `documents/{tenantId}/{docId}` for private files. The `tenantId` prefix partitions private files by tenant — a future "delete all files for tenant" operation touches only that prefix.
+
+Provider is configured via `objectstore.provider` in YAML (`r2`, `s3`, or `db`). `db` is the zero-config local dev fallback — files go into MongoDB. Switching to R2 for production requires no code changes, only config.
 
 ## Dependent Project Deployment (CRITICAL)
 

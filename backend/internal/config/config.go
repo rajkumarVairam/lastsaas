@@ -11,18 +11,45 @@ import (
 )
 
 type Config struct {
-	Environment string           `yaml:"-"`
-	Server      ServerConfig     `yaml:"server"`
-	Database    DatabaseConfig   `yaml:"database"`
-	Frontend    FrontendConfig   `yaml:"frontend"`
-	JWT         JWTConfig        `yaml:"jwt"`
-	OAuth       OAuthConfig      `yaml:"oauth"`
-	Email       EmailConfig      `yaml:"email"`
-	App         AppConfig        `yaml:"app"`
-	Stripe      StripeConfig     `yaml:"stripe"`
-	WebAuthn    WebAuthnConfig   `yaml:"webauthn"`
-	Webhooks    WebhooksConfig   `yaml:"webhooks"`
-	DataDog     DataDogConfig    `yaml:"datadog"`
+	Environment string            `yaml:"-"`
+	Server      ServerConfig      `yaml:"server"`
+	Database    DatabaseConfig    `yaml:"database"`
+	Frontend    FrontendConfig    `yaml:"frontend"`
+	JWT         JWTConfig         `yaml:"jwt"`
+	OAuth       OAuthConfig       `yaml:"oauth"`
+	Email       EmailConfig       `yaml:"email"`
+	App         AppConfig         `yaml:"app"`
+	Stripe      StripeConfig      `yaml:"stripe"`
+	WebAuthn    WebAuthnConfig    `yaml:"webauthn"`
+	Webhooks    WebhooksConfig    `yaml:"webhooks"`
+	DataDog     DataDogConfig     `yaml:"datadog"`
+	ObjectStore ObjectStoreConfig `yaml:"objectstore"`
+}
+
+// ObjectStoreConfig controls where uploaded files (logos, media, post images) are stored.
+// Provider "r2" and "s3" both use the AWS SDK v2 — only the endpoint differs.
+// Omit or set provider to "db" to store files in MongoDB (local dev default).
+type ObjectStoreConfig struct {
+	// Provider selects the backend: "r2" | "s3" | "db"
+	Provider string `yaml:"provider"`
+
+	// Shared across R2 and S3
+	AccessKey string `yaml:"access_key"`
+	SecretKey string `yaml:"secret_key"`
+	Bucket    string `yaml:"bucket"`
+	// PublicURL is the base URL browsers use to fetch files, e.g. "https://cdn.example.com"
+	PublicURL string `yaml:"public_url"`
+
+	// R2-specific: account ID used to build the R2 endpoint automatically.
+	// If Endpoint is set explicitly, AccountID is ignored.
+	AccountID string `yaml:"account_id"`
+
+	// S3-specific
+	Region string `yaml:"region"`
+
+	// Optional: override the endpoint URL. Required for R2 if AccountID is not set.
+	// Leave empty for standard AWS S3.
+	Endpoint string `yaml:"endpoint"`
 }
 
 type WebhooksConfig struct {
