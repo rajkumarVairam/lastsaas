@@ -1,0 +1,93 @@
+services:
+  - type: web
+    name: lastsaas
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    region: oregon  # change to: frankfurt, singapore, ohio, virginia
+
+    # Render injects PORT automatically — the app reads it via ${PORT} in prod.yaml
+    # Do not set PORT here; Render owns it.
+
+    healthCheckPath: /health
+
+    autoDeploy: true  # deploy on every push to the connected branch
+
+    envVars:
+      # ── Required ──────────────────────────────────────────────────────────────
+      - key: LASTSAAS_ENV
+        value: prod
+
+      - key: MONGODB_URI
+        sync: false   # set in Render dashboard (Secret)
+
+      - key: DATABASE_NAME
+        value: lastsaas
+
+      - key: FRONTEND_URL
+        sync: false   # e.g. https://yourapp.onrender.com or your custom domain
+
+      - key: JWT_ACCESS_SECRET
+        generateValue: true   # Render generates a random secret on first deploy
+
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+
+      - key: WEBHOOK_ENCRYPTION_KEY
+        generateValue: true
+
+      # ── Email (Resend) ─────────────────────────────────────────────────────────
+      - key: RESEND_API_KEY
+        sync: false
+
+      - key: FROM_EMAIL
+        sync: false   # e.g. noreply@yourdomain.com
+
+      - key: FROM_NAME
+        sync: false   # e.g. YourApp
+
+      # ── Stripe ────────────────────────────────────────────────────────────────
+      - key: STRIPE_SECRET_KEY
+        sync: false
+
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false   # from Stripe dashboard → Webhooks → your endpoint → signing secret
+
+      # ── App branding ──────────────────────────────────────────────────────────
+      - key: APP_NAME
+        value: YourApp   # replace with your product name
+
+      # ── OAuth (optional — remove blocks you don't use) ────────────────────────
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+
+      - key: GOOGLE_REDIRECT_URL
+        sync: false   # https://yourapp.onrender.com/api/auth/google/callback
+
+      # ── Object storage (optional — defaults to MongoDB if omitted) ─────────────
+      # Set OBJECTSTORE_PROVIDER=r2 or s3 and fill the rest if you want file uploads
+      # to go to Cloudflare R2 or AWS S3. Leave blank to store in MongoDB.
+      - key: OBJECTSTORE_PROVIDER
+        value: db   # change to r2 or s3 for production file uploads
+
+      # - key: OBJECTSTORE_ACCESS_KEY
+      #   sync: false
+      # - key: OBJECTSTORE_SECRET_KEY
+      #   sync: false
+      # - key: OBJECTSTORE_BUCKET
+      #   sync: false
+      # - key: OBJECTSTORE_PUBLIC_URL
+      #   sync: false
+      # - key: OBJECTSTORE_ACCOUNT_ID   # R2 only
+      #   sync: false
+
+      # ── Observability (optional) ───────────────────────────────────────────────
+      # - key: DATADOG_API_KEY
+      #   sync: false
+      # - key: DATADOG_SITE
+      #   value: us5.datadoghq.com

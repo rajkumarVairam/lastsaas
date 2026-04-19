@@ -31,6 +31,9 @@ COPY backend/config/prod.yaml ./config/prod.yaml
 COPY --from=frontend-builder /build/dist ./static
 
 ENV LASTSAAS_ENV=prod
+# PORT is injected by Render (and other PaaS). Expose a default for local Docker runs.
 EXPOSE 8080
 
-CMD ["./lastsaas"]
+# Map PORT → SERVER_PORT so the config's ${SERVER_PORT:8080} substitution picks it up.
+# Works on Render (PORT=10000+), Fly (PORT=8080), and plain docker run -p.
+CMD ["sh", "-c", "SERVER_PORT=${PORT:-8080} SERVER_HOST=0.0.0.0 ./lastsaas"]
