@@ -1,71 +1,126 @@
 # Self-Hosted MongoDB
 
-Drop-in replacement for MongoDB Atlas. Change streams work (replica set is auto-initialised), so SSE and live config reload work without modification.
+Drop-in replacement for MongoDB Atlas. Change streams work (replica set auto-initialises), so SSE and live config reload require no code changes.
 
-## First-time VM setup (any provider)
+---
+
+## Step 1 — Get a VM
+
+**Recommended free option: Oracle Cloud Always Free**
+
+1. Sign up at [cloud.oracle.com](https://cloud.oracle.com)
+2. Create an **Ampere A1 ARM** instance — 2 OCPU + 8 GB RAM, Ubuntu 22.04, always free
+3. Download the SSH key when prompted
+4. In **Networking → Security List**, open port **22** only — keep 27017 closed
+5. SSH in: `ssh -i ~/your-key.pem ubuntu@<VM_IP>`
+
+---
+
+## Step 2 — Install Docker on the VM
 
 ```bash
-# 1. Clone or copy this directory onto your VM
-scp -r docker/mongodb user@<VM_IP>:~/lastsaas-mongo
-
-# 2. On the VM:
-cd ~/lastsaas-mongo
-cp .env.example .env
-nano .env          # set MONGO_USER, MONGO_PASS, MONGO_DB
-
-# 3. Generate the replica set keyfile (once only — back it up)
-bash generate-keyfile.sh
-
-# 4. Start everything
-docker compose up -d
-
-# Replica set is initialised automatically. Check logs:
-docker logs lastsaas-mongo-init
-docker logs lastsaas-mongo-backup
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
+# Log out and back in, then verify:
+docker compose version
 ```
 
-## Switching your app from Atlas → self-hosted
+---
 
-In your `backend/config/prod.yaml` (or Fly secrets), change one value:
+## Step 3 — Copy and configure
+
+From your local machine:
+
+```bash
+scp -i ~/your-key.pem -r docker/mongodb ubuntu@<VM_IP>:~/lastsaas-mongo
+```
+
+On the VM:
+
+```bash
+cd ~/lastsaas-mongo
+cp .env.example .env
+nano .env   # set MONGO_USER, MONGO_PASS, MONGO_DB
+```
+
+Generate the replica set keyfile (once only — back this file up):
+
+```bash
+openssl rand -base64 756 > keyfile && chmod 400 keyfile
+```
+
+---
+
+## Step 4 — Start
+
+```bash
+docker compose up -d
+```
+
+This starts MongoDB, waits for it to be healthy, then `mongo-init` auto-initialises the replica set and exits. The `mongo-backup` container runs daily at 02:00.
+
+Verify:
+
+```bash
+docker compose ps
+docker logs lastsaas-mongo-init
+```
+
+---
+
+## Step 5 — Point your app at the new database
+
+Add to Fly secrets:
+
+```bash
+fly secrets set MONGODB_URI="mongodb://USER:PASS@<VM_IP>:27017/DB?replicaSet=rs0&authSource=admin" \
+  -c fly.saas.toml
+```
+
+Or in `backend/config/prod.yaml`:
 
 ```yaml
-# Atlas (current)
-mongodb_uri: "mongodb+srv://user:pass@cluster.mongodb.net/?retryWrites=true"
-
-# Self-hosted (single-node replica set)
-mongodb_uri: "mongodb://lastsaas:PASS@<VM_IP>:27017/lastsaas?replicaSet=rs0&authSource=admin"
+mongodb_uri: "mongodb://USER:PASS@<VM_IP>:27017/DB?replicaSet=rs0&authSource=admin"
 ```
 
 No code changes. Restart the app and it connects to the new host.
 
+---
+
 ## Falling back to Atlas
 
-Just revert `mongodb_uri` to your Atlas connection string and restart. Atlas remains your fallback at all times.
+Revert `MONGODB_URI` to your Atlas connection string and restart. Atlas is always your fallback.
+
+---
 
 ## Backups
 
-| What | Where | Schedule |
-|---|---|---|
-| Local archive | `mongo_backups` Docker volume | Daily 02:00 |
-| Offsite | S3 or Cloudflare R2 | Same, if `S3_BUCKET` is set in `.env` |
-| Retention | Configurable via `BACKUP_RETAIN_DAYS` | Default: 7 days |
+Daily at 02:00, kept 7 days locally. Set `S3_BUCKET` + credentials in `.env` to also upload to Cloudflare R2 or S3.
 
 Run a manual backup anytime:
+
 ```bash
 docker exec lastsaas-mongo-backup /scripts/backup.sh
 ```
 
-## Recommended free VM: Oracle Cloud Always Free
-
-- Sign up at cloud.oracle.com
-- Create an **Ampere A1 ARM** instance (4 OCPU + 24 GB RAM — always free)
-- Open port 27017 only in the VCN security list **if** using Tailscale/WireGuard between app and DB
-- Otherwise keep `127.0.0.1:27017` binding (default) and tunnel via SSH or Tailscale
+---
 
 ## Security checklist
 
-- [ ] `keyfile` backed up securely (losing it = cannot restart replica set)
+- [ ] `keyfile` backed up (losing it means you cannot restart the replica set)
 - [ ] `.env` not committed to git (already in `.gitignore`)
-- [ ] Port 27017 is **not** open to the public internet — use Tailscale or SSH tunnel
-- [ ] Offsite backup configured (`S3_BUCKET` in `.env`)
-- [ ] `MONGO_PASS` is a strong random password (not the example value)
+- [ ] Port 27017 closed to the public internet
+- [ ] Use [Tailscale](https://tailscale.com) for a private tunnel between the VM and your app
+- [ ] `MONGO_PASS` is a strong random password
+
+---
+
+## Useful commands
+
+```bash
+docker compose logs -f mongo                              # live logs
+docker exec lastsaas-mongo-backup /scripts/backup.sh     # manual backup
+docker exec -it lastsaas-mongo mongosh                   # open a shell
+docker compose down                                       # stop (data preserved)
+docker compose up -d                                      # restart after VM reboot
+```
