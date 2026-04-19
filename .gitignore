@@ -43,11 +43,12 @@ dist/
 # MCP registry tokens
 .mcpregistry_*
 
-# Claude Code personal settings (machine-specific)
-.claude/settings.local.json
+# Claude Code personal settings and session data (machine-specific)
+.claude/
 
-# Test seed manifest (contains credentials and JWTs — never commit)
+# Test seed data (contains credentials and JWTs — never commit)
 seed-manifest.json
+seed-tokens.json
 
 # MongoDB self-hosted secrets (docker/mongodb/)
 docker/mongodb/keyfile
