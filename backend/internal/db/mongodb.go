@@ -345,6 +345,17 @@ func (m *MongoDB) ensureIndexes() {
 				{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "ownerId", Value: 1}, {Key: "createdAt", Value: -1}}},
 			},
 		},
+		{
+			"cron_schedules",
+			[]mongo.IndexModel{
+				// Scheduler poll: active due schedules with no unexpired lock
+				{Keys: bson.D{{Key: "isActive", Value: 1}, {Key: "nextRunAt", Value: 1}}},
+				// Stale lock reclaim
+				{Keys: bson.D{{Key: "lockedUntil", Value: 1}}, Options: options.Index().SetSparse(true)},
+				// Tenant-facing list
+				{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "createdAt", Value: -1}}},
+			},
+		},
 	}
 
 	// Collections where unique index failure is a data integrity risk
@@ -538,4 +549,8 @@ func (m *MongoDB) Jobs() *mongo.Collection {
 
 func (m *MongoDB) Documents() *mongo.Collection {
 	return m.Database.Collection("documents")
+}
+
+func (m *MongoDB) CronSchedules() *mongo.Collection {
+	return m.Database.Collection("cron_schedules")
 }

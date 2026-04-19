@@ -451,3 +451,24 @@ func TestValidate_ErrorFormatting(t *testing.T) {
 		t.Errorf("expected 'validation failed:' prefix, got: %s", msg)
 	}
 }
+
+func TestValidate_ValidCronSchedule(t *testing.T) {
+	tenantID := primitive.NewObjectID()
+	createdBy := primitive.NewObjectID()
+	s := models.CronSchedule{
+		TenantID:    tenantID,
+		CreatedBy:   createdBy,
+		Name:        "Daily Digest",
+		Expression:  "0 9 * * *",
+		Timezone:    "UTC",
+		JobType:     "send_digest",
+		MaxAttempts: 3,
+		IsActive:    true,
+		NextRunAt:   time.Now().Add(24 * time.Hour),
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+	if err := Validate(&s); err != nil {
+		t.Errorf("expected valid cron schedule to pass: %v", err)
+	}
+}

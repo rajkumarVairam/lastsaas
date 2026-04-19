@@ -35,6 +35,7 @@ func AllSchemas() []CollectionSchema {
 		eventDefinitionsSchema(),
 		jobsSchema(),
 		documentsSchema(),
+		cronSchedulesSchema(),
 	}
 }
 
@@ -702,6 +703,49 @@ func eventDefinitionsSchema() CollectionSchema {
 					"updatedAt": bson.M{
 						"bsonType": "date",
 					},
+				},
+			},
+		},
+	}
+}
+
+
+func cronSchedulesSchema() CollectionSchema {
+	return CollectionSchema{
+		Collection: "cron_schedules",
+		Schema: bson.M{
+			"$jsonSchema": bson.M{
+				"bsonType": "object",
+				"required": bson.A{"tenantId", "createdBy", "name", "expression", "timezone", "jobType", "maxAttempts", "nextRunAt", "createdAt", "updatedAt"},
+				"properties": bson.M{
+					"tenantId":  bson.M{"bsonType": "objectId"},
+					"createdBy": bson.M{"bsonType": "objectId"},
+					"name": bson.M{
+						"bsonType":  "string",
+						"minLength": 1,
+						"maxLength": 200,
+					},
+					"expression": bson.M{
+						"bsonType":  "string",
+						"minLength": 1,
+						"maxLength": 100,
+					},
+					"timezone": bson.M{
+						"bsonType":  "string",
+						"minLength": 1,
+						"maxLength": 100,
+					},
+					"jobType": bson.M{
+						"bsonType":  "string",
+						"minLength": 1,
+						"maxLength": 100,
+					},
+					"maxAttempts": bson.M{"bsonType": "int", "minimum": 1, "maximum": 20},
+					"isActive":    bson.M{"bsonType": "bool"},
+					"nextRunAt":   bson.M{"bsonType": "date"},
+					"lastRunAt":   bson.M{"bsonType": "date"},
+					"createdAt":   bson.M{"bsonType": "date"},
+					"updatedAt":   bson.M{"bsonType": "date"},
 				},
 			},
 		},

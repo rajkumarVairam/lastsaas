@@ -979,6 +979,90 @@ func apiReference() []apiSection {
 			},
 		},
 		{
+			Title: "Cron Schedules",
+			Endpoints: []apiEndpoint{
+				{
+					Method:   "GET",
+					Path:     "/api/tenant/cron-schedules",
+					Summary:  "List cron schedules",
+					Detail:   "Returns all recurring schedules for the current tenant, sorted by creation date descending.",
+					Auth:     "jwt+tenant",
+					Response: `[{"id":"...","name":"Daily Digest","expression":"0 9 * * *","timezone":"UTC","jobType":"send_digest","maxAttempts":3,"isActive":true,"nextRunAt":"2024-01-02T09:00:00Z","createdAt":"..."}]`,
+				},
+				{
+					Method:  "POST",
+					Path:    "/api/tenant/cron-schedules",
+					Summary: "Create cron schedule",
+					Detail:  "Creates a new recurring schedule. <code>expression</code> uses standard 5-field cron syntax (minute hour dom month dow). <code>timezone</code> defaults to <code>UTC</code>. <code>maxAttempts</code> defaults to 3. The schedule is active immediately and fires at the next matching time.",
+					Auth:    "jwt+tenant",
+					Body:    `{"name":"Daily Digest","expression":"0 9 * * *","timezone":"America/New_York","jobType":"send_digest","payload":{"template":"daily"},"maxAttempts":3}`,
+					Response: `{"id":"...","name":"Daily Digest","expression":"0 9 * * *","timezone":"America/New_York","jobType":"send_digest","isActive":true,"nextRunAt":"2024-01-02T14:00:00Z"}`,
+				},
+				{
+					Method:   "GET",
+					Path:     "/api/tenant/cron-schedules/{id}",
+					Summary:  "Get cron schedule",
+					Detail:   "Returns a single cron schedule by ID.",
+					Auth:     "jwt+tenant",
+					Params:   []apiParam{{Name: "id", Type: "objectId", Required: true, Desc: "Schedule ID"}},
+					Response: `{"id":"...","name":"Daily Digest","expression":"0 9 * * *","isActive":true,"nextRunAt":"..."}`,
+				},
+				{
+					Method:   "PATCH",
+					Path:     "/api/tenant/cron-schedules/{id}",
+					Summary:  "Update cron schedule",
+					Detail:   "Updates schedule fields. Changing <code>expression</code> or <code>timezone</code> recomputes <code>nextRunAt</code> immediately. All fields are optional.",
+					Auth:     "jwt+tenant",
+					Params:   []apiParam{{Name: "id", Type: "objectId", Required: true, Desc: "Schedule ID"}},
+					Body:     `{"expression":"0 10 * * *","timezone":"UTC"}`,
+					Response: `{"id":"...","expression":"0 10 * * *","nextRunAt":"..."}`,
+				},
+				{
+					Method:   "DELETE",
+					Path:     "/api/tenant/cron-schedules/{id}",
+					Summary:  "Delete cron schedule",
+					Detail:   "Permanently removes the schedule. In-flight jobs already enqueued by this schedule are unaffected.",
+					Auth:     "jwt+tenant",
+					Params:   []apiParam{{Name: "id", Type: "objectId", Required: true, Desc: "Schedule ID"}},
+				},
+				{
+					Method:   "POST",
+					Path:     "/api/tenant/cron-schedules/{id}/pause",
+					Summary:  "Pause cron schedule",
+					Detail:   "Sets <code>isActive=false</code>. The scheduler will skip this schedule until resumed.",
+					Auth:     "jwt+tenant",
+					Params:   []apiParam{{Name: "id", Type: "objectId", Required: true, Desc: "Schedule ID"}},
+					Response: `{"id":"...","isActive":false}`,
+				},
+				{
+					Method:   "POST",
+					Path:     "/api/tenant/cron-schedules/{id}/resume",
+					Summary:  "Resume cron schedule",
+					Detail:   "Sets <code>isActive=true</code> and recomputes <code>nextRunAt</code> from the current time so the schedule fires at the next matching time, not the missed one.",
+					Auth:     "jwt+tenant",
+					Params:   []apiParam{{Name: "id", Type: "objectId", Required: true, Desc: "Schedule ID"}},
+					Response: `{"id":"...","isActive":true,"nextRunAt":"..."}`,
+				},
+			},
+		},
+		{
+			Title: "Server-Sent Events",
+			Endpoints: []apiEndpoint{
+				{
+					Method:  "GET",
+					Path:    "/api/tenant/events/stream",
+					Summary: "Subscribe to real-time events",
+					Detail:  "Opens a persistent Server-Sent Events (SSE) connection for the current tenant. Events are pushed when background jobs complete or fail. Use the browser <code>EventSource</code> API or any SSE client. A heartbeat comment (<code>: heartbeat</code>) is sent every 30 seconds to keep the connection alive through proxies. Reconnect automatically on disconnect — <code>EventSource</code> does this by default.<br><br>Events: <code>job.completed</code>, <code>job.failed</code>, <code>job.dead</code>. Each <code>data</code> field is a JSON object with <code>id</code>, <code>type</code>, <code>status</code>, and optionally <code>result</code> or <code>error</code>.",
+					Auth:    "jwt+tenant",
+					Response: `event: job.completed
+data: {"id":"...","type":"export_pdf","status":"completed","result":{"url":"https://..."}}}
+
+event: job.failed
+data: {"id":"...","type":"send_digest","status":"failed","error":"smtp timeout"}`,
+				},
+			},
+		},
+		{
 			Title: "System",
 			Endpoints: []apiEndpoint{
 				{

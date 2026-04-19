@@ -16,6 +16,7 @@ import (
 	"lastsaas/internal/auth"
 	"lastsaas/internal/config"
 	"lastsaas/internal/configstore"
+	"lastsaas/internal/cron"
 	"lastsaas/internal/datadog"
 	"lastsaas/internal/db"
 	"lastsaas/internal/email"
@@ -27,6 +28,7 @@ import (
 	"lastsaas/internal/models"
 	"lastsaas/internal/objectstore"
 	"lastsaas/internal/planstore"
+	"lastsaas/internal/sse"
 	stripeservice "lastsaas/internal/stripe"
 	"lastsaas/internal/syslog"
 	"lastsaas/internal/telemetry"
@@ -408,8 +410,21 @@ func main() {
 	//   jobQueue.Register(myjobs.NewScheduledPostHandler(zernioClient))
 	jobQueue.Start(appCtx)
 	defer jobQueue.Stop()
+
+	// Initialize cron scheduler (reuses job queue — no extra infrastructure)
+	cronScheduler := cron.New(database, jobQueue, jobNodeID)
+	cronScheduler.Start(appCtx)
+	defer cronScheduler.Stop()
+
+	// Initialize SSE hub and job change stream watcher
+	sseHub := sse.New()
+	sseWatcher := sse.NewWatcher(database, sseHub)
+	sseWatcher.Start(appCtx)
+
 	jobsHandler := handlers.NewJobsHandler(database, jobQueue)
 	documentsHandler := handlers.NewDocumentsHandler(database, objStore, sysLogger)
+	cronHandler := handlers.NewCronHandler(database)
+	sseHandler := handlers.NewSSEHandler(sseHub)
 
 	// Setup router
 	router := mux.NewRouter()
@@ -596,6 +611,18 @@ func main() {
 	tenantAPI.HandleFunc("/documents/{id}", documentsHandler.GetDocument).Methods("GET")
 	tenantAPI.HandleFunc("/documents/{id}", documentsHandler.DeleteDocument).Methods("DELETE")
 	tenantAPI.HandleFunc("/documents/{id}/download", documentsHandler.DownloadDocument).Methods("GET")
+
+	// Cron schedule routes (tenant-scoped)
+	tenantAPI.HandleFunc("/cron-schedules", cronHandler.ListSchedules).Methods("GET")
+	tenantAPI.HandleFunc("/cron-schedules", cronHandler.CreateSchedule).Methods("POST")
+	tenantAPI.HandleFunc("/cron-schedules/{id}", cronHandler.GetSchedule).Methods("GET")
+	tenantAPI.HandleFunc("/cron-schedules/{id}", cronHandler.UpdateSchedule).Methods("PATCH")
+	tenantAPI.HandleFunc("/cron-schedules/{id}", cronHandler.DeleteSchedule).Methods("DELETE")
+	tenantAPI.HandleFunc("/cron-schedules/{id}/pause", cronHandler.PauseSchedule).Methods("POST")
+	tenantAPI.HandleFunc("/cron-schedules/{id}/resume", cronHandler.ResumeSchedule).Methods("POST")
+
+	// SSE event stream (tenant-scoped)
+	tenantAPI.HandleFunc("/events/stream", sseHandler.Stream).Methods("GET")
 
 	// Tenant settings (owner only)
 	tenantSettingsRouter := tenantAPI.PathPrefix("/settings").Subrouter()
