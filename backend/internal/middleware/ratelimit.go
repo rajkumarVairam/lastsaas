@@ -141,46 +141,46 @@ func (rl *RateLimiter) allowDistributed(key string, config RateLimitConfig) (boo
 
 	now := time.Now()
 	windowEnd := now.Add(config.Window)
-	// expiresAt gives MongoDB TTL some buffer to clean up after the window.
 	expiresAt := windowEnd.Add(time.Minute)
 
-	// Atomically increment counter, creating the doc if it doesn't exist.
-	// If the window has expired, reset the counter.
-	opts := options.FindOneAndUpdate().SetUpsert(true).SetReturnDocument(options.After)
+	// Single atomic upsert via aggregation pipeline update.
+	// If a valid window exists (windowEnd > now): increment count, keep dates.
+	// Otherwise (expired or new document): reset count to 1 and open a new window.
+	// On upsert (new document), $windowEnd is null — the $gt condition is false,
+	// so count starts at 1 and the new window dates are applied correctly.
+	update := mongo.Pipeline{
+		bson.D{{Key: "$set", Value: bson.D{
+			{Key: "count", Value: bson.M{"$cond": bson.A{
+				bson.M{"$gt": bson.A{"$windowEnd", now}},
+				bson.M{"$add": bson.A{"$count", 1}},
+				1,
+			}}},
+			{Key: "windowEnd", Value: bson.M{"$cond": bson.A{
+				bson.M{"$gt": bson.A{"$windowEnd", now}},
+				"$windowEnd",
+				windowEnd,
+			}}},
+			{Key: "expiresAt", Value: bson.M{"$cond": bson.A{
+				bson.M{"$gt": bson.A{"$windowEnd", now}},
+				"$expiresAt",
+				expiresAt,
+			}}},
+		}}},
+	}
 
 	var doc rateLimitDoc
-
-	// First, try to increment within an existing valid window.
 	err := rl.collection.FindOneAndUpdate(ctx,
-		bson.M{"_id": key, "windowEnd": bson.M{"$gt": now}},
-		bson.M{"$inc": bson.M{"count": 1}},
-		opts,
+		bson.M{"_id": key},
+		update,
+		options.FindOneAndUpdate().SetUpsert(true).SetReturnDocument(options.After),
 	).Decode(&doc)
-
 	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			// No valid window exists — reset/create with count=1.
-			err = rl.collection.FindOneAndUpdate(ctx,
-				bson.M{"_id": key},
-				bson.M{"$set": bson.M{
-					"count":     1,
-					"windowEnd": windowEnd,
-					"expiresAt": expiresAt,
-				}},
-				opts,
-			).Decode(&doc)
-			if err != nil {
-				return false, 0, now, err
-			}
-		} else {
-			return false, 0, now, err
-		}
+		return false, 0, now, err
 	}
 
 	if doc.Count > config.MaxRequests {
 		return false, 0, doc.WindowEnd, nil
 	}
-
 	remaining := config.MaxRequests - doc.Count
 	return true, remaining, doc.WindowEnd, nil
 }
