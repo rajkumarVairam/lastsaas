@@ -40,6 +40,10 @@ LastSaaS eliminates that. Fork it, point an AI agent at it, and start building y
 - Built-in API documentation (HTML and Markdown)
 - Real-time system health monitoring
 - Financial metrics dashboard (revenue, ARR, DAU, MAU)
+- Multi-provider object storage (Cloudflare R2, AWS S3, or MongoDB fallback) for public CDN assets and private per-tenant documents
+- Durable background job queue (MongoDB-backed, no Redis) with worker pool, exponential backoff, and REST API
+- Recurring cron schedules (5-field cron expressions, per-timezone) that re-enqueue jobs automatically
+- Server-Sent Events (SSE) for real-time job status push to connected clients
 - MCP (Model Context Protocol) server for AI-powered admin access
 - CLI tools for server administration
 - Auto-versioning with database migrations
@@ -84,6 +88,8 @@ If you're evaluating SaaS boilerplates, you've probably looked at ShipFast, Supa
 | **Health Monitoring** | 8 charts | — | — | — | — | — |
 | **Product Analytics** | 5-tab PM dashboard | — | — | — | — | — |
 | **Credit System** | Dual buckets | — | — | Basic | — | — |
+| **Job Queue** | Durable, no Redis | — | — | — | — | — |
+| **Object Storage** | R2/S3/DB fallback | — | — | — | — | — |
 | **MCP Server** | 26 tools | — | — | — | — | — |
 | **Admin Dashboard** | Full | — | ✓ | ✓ | ✓ | Basic |
 | **Stripe Billing** | Full | ✓ | ✓ | ✓ | ✓ | ✓ |
@@ -170,6 +176,43 @@ If you're evaluating SaaS boilerplates, you've probably looked at ShipFast, Supa
 - Test event delivery
 - Secret regeneration
 - Event type filtering per webhook
+- **Durable retry queue** — failed deliveries are persisted to MongoDB and retried with exponential backoff; state survives server restarts
+
+### Object Storage
+- Provider-agnostic `Store` interface — swap between Cloudflare R2, AWS S3, and MongoDB fallback with a single config change, no code changes
+- **Public assets** (logos, favicons, media library) — served via CDN URL with 301 redirect; legacy MongoDB blobs still served for backward compatibility
+- **Private tenant documents** — per-tenant namespace (`documents/{tenantId}/{docId}`), download via 15-minute presigned GET (302 redirect)
+- **Visibility control** — `tenant` (all members) or `owner` (uploader only)
+- Full REST API: upload, list, get metadata, download (presigned), delete
+- Health check wired into the integration dashboard — misconfigured credentials surface at startup
+- MongoDB fallback for zero-config local development; no object store credentials required
+
+### Background Job Queue
+- Durable MongoDB-backed job queue — no Redis, no extra infrastructure
+- Atomic `findOneAndUpdate` claim prevents double-execution across concurrent workers
+- N-worker pool (default 5) with per-job 4-minute execution timeout
+- Exponential backoff on retry: 30s base → 1h ceiling
+- Stale lock reclaim on startup and every 5 minutes (crash recovery)
+- `Handler` interface (`Type() string`, `Execute(ctx, job) error`) — register product job types at startup
+- Full REST API: list, enqueue, get, cancel, retry (`/api/tenant/jobs/*`)
+- 30-day TTL auto-cleans completed and cancelled jobs
+
+### Recurring Scheduled Tasks (Cron)
+- Recurring schedules backed by the job queue — no Redis, no separate scheduler infrastructure
+- Standard 5-field cron expressions with per-schedule timezone support
+- Distributed atomic claim — multiple nodes compete safely, each schedule fires exactly once per tick
+- Stale lock reclaim every 5 minutes for crash recovery
+- Full REST API: list, create, update, delete, pause, resume
+- Paused schedules recompute `nextRunAt` on resume (no missed-fire backlog)
+
+### Server-Sent Events (SSE)
+- Real-time push channel for background job status — no polling required
+- In-memory tenant-scoped pub/sub hub; non-blocking publish skips slow clients
+- MongoDB change stream watcher on the jobs collection — cross-node delivery regardless of which node ran the job
+- Graceful fallback when change streams are unavailable (standalone local MongoDB)
+- 30-second heartbeat keeps connections alive through reverse proxies
+- Events: `job.completed`, `job.failed`, `job.dead` with full payload
+- Frontend uses the browser `EventSource` API — reconnects automatically on disconnect
 
 ### Admin Interface
 - **Dashboard** with user/tenant counts, health overview, and business metrics
@@ -302,6 +345,8 @@ A built-in [Model Context Protocol](https://modelcontextprotocol.io) server give
 | Auth | JWT (access + refresh), bcrypt, Google/GitHub/Microsoft OAuth, Magic Links, TOTP MFA |
 | Billing | Stripe (stripe-go v82) — Checkout, Billing Portal, Webhooks, Tax |
 | Email | Resend |
+| Object Storage | Cloudflare R2, AWS S3 (aws-sdk-go-v2), or MongoDB fallback |
+| Job Scheduling | robfig/cron v3 (cron expression parsing) |
 | Charts | Recharts |
 | Metrics | gopsutil v4 |
 | PDF | gofpdf (invoice generation) |
@@ -481,6 +526,13 @@ Secrets are referenced as `${ENV_VAR}` in YAML and expanded from environment var
 | `RESEND_API_KEY` | No | Resend email service API key |
 | `FROM_EMAIL` | No | Sender email address (default: noreply@yourdomain.com) |
 | `FROM_NAME` | No | Sender name (default: LastSaaS) |
+| `OBJECTSTORE_PROVIDER` | No | Object store provider: `r2`, `s3`, or `db` (default: `db` — stores in MongoDB) |
+| `OBJECTSTORE_ACCESS_KEY` | No | R2/S3 access key ID |
+| `OBJECTSTORE_SECRET_KEY` | No | R2/S3 secret access key |
+| `OBJECTSTORE_BUCKET` | No | R2/S3 bucket name |
+| `OBJECTSTORE_PUBLIC_URL` | No | Public CDN URL for the bucket (e.g. `https://cdn.yourdomain.com`) |
+| `OBJECTSTORE_ACCOUNT_ID` | No | Cloudflare account ID (R2 only) |
+| `OBJECTSTORE_REGION` | No | AWS region (S3 only, e.g. `us-east-1`) |
 
 ---
 
@@ -498,14 +550,19 @@ lastsaas/
       apicounter/                  API call counters for integration health
       auth/                       JWT, password hashing, Google/GitHub/Microsoft OAuth, TOTP MFA
       config/                     Config loader with env variable expansion
-      configstore/                Runtime configuration (DB-backed, cached)
-      db/                         MongoDB connection, collections, indexes
+      cache/                      Generic in-memory TTL cache (used by tenant middleware hot path)
+      configstore/                Runtime configuration (DB-backed, in-memory cache, change stream sync)
+      cron/                       Recurring schedule scheduler (atomic claim, robfig/cron expressions)
+      db/                         MongoDB connection, collections, indexes, JSON Schema validation
       email/                      Resend email service with templates
       events/                     Internal event emitter (drives webhook deliveries)
       health/                     System health monitoring service
+      jobs/                       Durable background job queue (MongoDB-backed, worker pool)
       middleware/                  Auth, tenant, RBAC, rate limiting, metrics, security, billing enforcement
       models/                     All data models
+      objectstore/                Provider-agnostic object storage (R2, S3, MongoDB fallback)
       planstore/                  Plan seeding
+      sse/                        Server-Sent Events hub and MongoDB change stream watcher
       stripe/                     Stripe service (Checkout, Billing Portal, Customers, Prices, Subscriptions)
       syslog/                     System logging service with injection detection
       telemetry/                  Telemetry event collection, Go SDK, and PM analytics queries
@@ -856,7 +913,8 @@ flyctl secrets set \
   APP_NAME="YourApp" \
   STRIPE_SECRET_KEY="sk_live_..." \
   STRIPE_PUBLISHABLE_KEY="pk_live_..." \
-  STRIPE_WEBHOOK_SECRET="whsec_..."
+  STRIPE_WEBHOOK_SECRET="whsec_..." \
+  OBJECTSTORE_PROVIDER="db"
 
 # Deploy
 flyctl deploy
@@ -884,12 +942,16 @@ Here's what's already wired up for you:
 4. **Add frontend pages** in `frontend/src/pages/`
 5. **Use the tenant context** — every authenticated request carries the user's tenant, so your product logic gets multi-tenancy for free
 6. **Use the credit system** — check and deduct credits for usage-based features
-7. **Use entitlements** — gate features with `middleware.RequireEntitlement(db, "feature_name")` and `middleware.RequireActiveBilling()`
+7. **Use entitlements** — gate features with `tenantMiddleware.RequireEntitlement("feature_name")` and `middleware.RequireActiveBilling()`
 8. **Use the config store** — add runtime-configurable settings without redeployment
 9. **Use the event emitter** — emit events from your handlers and they'll automatically be delivered to configured webhooks
 10. **Use API keys** — your endpoints automatically support both JWT and API key authentication
 11. **Use the branding system** — your UI inherits the white-label theme automatically via the BrandingContext
 12. **Use the telemetry system** — track custom events with `telemetry.Track()` in Go or `POST /telemetry/events` from external clients, and they'll automatically appear in the PM dashboard
+13. **Use the job queue** — enqueue background work with `jobQueue.Enqueue(ctx, &models.Job{Type: "your_job", TenantID: tenant.ID, Payload: ...})` and implement a `Handler` interface to process it
+14. **Use cron schedules** — create recurring jobs via `POST /api/tenant/cron-schedules` with a cron expression, timezone, and job type; the scheduler re-enqueues them automatically
+15. **Use SSE** — subscribe the frontend to `GET /api/tenant/events/stream` with the browser `EventSource` API to receive `job.completed` and `job.failed` events in real time without polling
+16. **Use object storage** — upload files via `POST /api/tenant/documents` and download via presigned redirect; configure `OBJECTSTORE_PROVIDER=r2` or `s3` in production, `db` for local dev with no extra setup
 
 ---
 
