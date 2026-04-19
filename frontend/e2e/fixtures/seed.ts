@@ -57,7 +57,7 @@ export function getSeedManifest(): SeedManifest {
   if (!fs.existsSync(manifestPath)) {
     throw new Error(
       `seed-manifest.json not found at ${manifestPath}.\n` +
-      `Run: cd backend && go run ./cmd/lastsaas seed`
+      `Run: cd backend && go run ./cmd/saasquickstart seed`
     );
   }
 

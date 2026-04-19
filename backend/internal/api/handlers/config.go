@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"time"
 
-	"lastsaas/internal/configstore"
-	"lastsaas/internal/db"
-	"lastsaas/internal/models"
-	"lastsaas/internal/syslog"
+	"saasquickstart/internal/configstore"
+	"saasquickstart/internal/db"
+	"saasquickstart/internal/models"
+	"saasquickstart/internal/syslog"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"

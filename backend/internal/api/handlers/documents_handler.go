@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"lastsaas/internal/db"
-	"lastsaas/internal/middleware"
-	"lastsaas/internal/models"
-	"lastsaas/internal/objectstore"
-	"lastsaas/internal/syslog"
+	"saasquickstart/internal/db"
+	"saasquickstart/internal/middleware"
+	"saasquickstart/internal/models"
+	"saasquickstart/internal/objectstore"
+	"saasquickstart/internal/syslog"
 
 	"github.com/gorilla/mux"
 	"go.mongodb.org/mongo-driver/bson"

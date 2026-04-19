@@ -1,7 +1,7 @@
 services:
   mongo:
     image: mongo:7
-    container_name: lastsaas-mongo
+    container_name: saasquickstart-mongo
     restart: always
     command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--auth", "--keyFile", "/etc/mongo/keyfile"]
     environment:
@@ -24,7 +24,7 @@ services:
   # One-shot container: initialises replica set on first boot, idempotent on restarts.
   mongo-init:
     image: mongo:7
-    container_name: lastsaas-mongo-init
+    container_name: saasquickstart-mongo-init
     depends_on:
       mongo:
         condition: service_healthy
@@ -39,7 +39,7 @@ services:
   # Runs mongodump daily at 02:00, keeps 7 days locally, optionally ships to S3/R2.
   mongo-backup:
     image: mongo:7
-    container_name: lastsaas-mongo-backup
+    container_name: saasquickstart-mongo-backup
     depends_on:
       mongo:
         condition: service_healthy

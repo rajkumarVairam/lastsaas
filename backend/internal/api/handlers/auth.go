@@ -12,15 +12,15 @@ import (
 	"strings"
 	"time"
 
-	"lastsaas/internal/auth"
-	"lastsaas/internal/db"
-	"lastsaas/internal/email"
-	"lastsaas/internal/events"
-	"lastsaas/internal/middleware"
-	"lastsaas/internal/models"
-	"lastsaas/internal/syslog"
-	"lastsaas/internal/telemetry"
-	"lastsaas/internal/validation"
+	"saasquickstart/internal/auth"
+	"saasquickstart/internal/db"
+	"saasquickstart/internal/email"
+	"saasquickstart/internal/events"
+	"saasquickstart/internal/middleware"
+	"saasquickstart/internal/models"
+	"saasquickstart/internal/syslog"
+	"saasquickstart/internal/telemetry"
+	"saasquickstart/internal/validation"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -854,7 +854,7 @@ func (h *AuthHandler) MFASetup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	appName := "LastSaaS"
+	appName := "SaaSQuickStart"
 	if h.getConfig != nil {
 		if name := h.getConfig("app.name"); name != "" {
 			appName = name

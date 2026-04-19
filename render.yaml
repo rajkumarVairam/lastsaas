@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: lastsaas
+    name: saasquickstart
     runtime: docker
     dockerfilePath: ./Dockerfile
     region: oregon  # change to: frankfurt, singapore, ohio, virginia
@@ -14,14 +14,14 @@ services:
 
     envVars:
       # ── Required ──────────────────────────────────────────────────────────────
-      - key: LASTSAAS_ENV
+      - key: APP_ENV
         value: prod
 
       - key: MONGODB_URI
         sync: false   # set in Render dashboard (Secret)
 
       - key: DATABASE_NAME
-        value: lastsaas
+        value: saasquickstart
 
       - key: FRONTEND_URL
         sync: false   # e.g. https://yourapp.onrender.com or your custom domain

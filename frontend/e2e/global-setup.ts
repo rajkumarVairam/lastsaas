@@ -20,7 +20,7 @@ async function globalSetup() {
   console.log('[seed] Running seed command...');
   try {
     execSync(
-      `go run ./cmd/lastsaas seed --reset --output "${MANIFEST_PATH}"`,
+      `go run ./cmd/saasquickstart seed --reset --output "${MANIFEST_PATH}"`,
       {
         cwd: backendDir,
         stdio: 'inherit',

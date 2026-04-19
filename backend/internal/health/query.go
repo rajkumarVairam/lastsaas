@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	"lastsaas/internal/models"
+	"saasquickstart/internal/models"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"

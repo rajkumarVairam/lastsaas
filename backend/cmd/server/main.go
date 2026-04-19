@@ -12,28 +12,28 @@ import (
 	"syscall"
 	"time"
 
-	"lastsaas/internal/api/handlers"
-	"lastsaas/internal/auth"
-	"lastsaas/internal/config"
-	"lastsaas/internal/configstore"
-	"lastsaas/internal/cron"
-	"lastsaas/internal/datadog"
-	"lastsaas/internal/db"
-	"lastsaas/internal/email"
-	"lastsaas/internal/events"
-	"lastsaas/internal/health"
-	"lastsaas/internal/jobs"
-	"lastsaas/internal/metrics"
-	"lastsaas/internal/middleware"
-	"lastsaas/internal/models"
-	"lastsaas/internal/objectstore"
-	"lastsaas/internal/planstore"
-	"lastsaas/internal/sse"
-	stripeservice "lastsaas/internal/stripe"
-	"lastsaas/internal/syslog"
-	"lastsaas/internal/telemetry"
-	"lastsaas/internal/version"
-	"lastsaas/internal/webhooks"
+	"saasquickstart/internal/api/handlers"
+	"saasquickstart/internal/auth"
+	"saasquickstart/internal/config"
+	"saasquickstart/internal/configstore"
+	"saasquickstart/internal/cron"
+	"saasquickstart/internal/datadog"
+	"saasquickstart/internal/db"
+	"saasquickstart/internal/email"
+	"saasquickstart/internal/events"
+	"saasquickstart/internal/health"
+	"saasquickstart/internal/jobs"
+	"saasquickstart/internal/metrics"
+	"saasquickstart/internal/middleware"
+	"saasquickstart/internal/models"
+	"saasquickstart/internal/objectstore"
+	"saasquickstart/internal/planstore"
+	"saasquickstart/internal/sse"
+	stripeservice "saasquickstart/internal/stripe"
+	"saasquickstart/internal/syslog"
+	"saasquickstart/internal/telemetry"
+	"saasquickstart/internal/version"
+	"saasquickstart/internal/webhooks"
 
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
@@ -101,7 +101,7 @@ func main() {
 		slog.Error("Failed to load config", "error", err)
 		os.Exit(1)
 	}
-	slog.Info("Starting LastSaaS", "mode", cfg.Environment)
+	slog.Info("Starting SaaSQuickStart", "mode", cfg.Environment)
 
 	// Connect to MongoDB
 	database, err := db.NewMongoDB(cfg.Database.URI, cfg.Database.Name)
@@ -166,7 +166,7 @@ func main() {
 		slog.Warn("DataDog integration not configured", "reason", "missing API key")
 	}
 
-	sysLogger.Critical(context.Background(), fmt.Sprintf("System startup: LastSaaS v%s", version.Current))
+	sysLogger.Critical(context.Background(), fmt.Sprintf("System startup: SaaSQuickStart v%s", version.Current))
 
 	// Initialize services
 	jwtService := auth.NewJWTService(

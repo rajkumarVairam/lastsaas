@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"lastsaas/internal/models"
+	"saasquickstart/internal/models"
 )
 
 // Handler executes jobs of a specific type.

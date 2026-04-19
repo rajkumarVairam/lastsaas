@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"lastsaas/internal/models"
+	"saasquickstart/internal/models"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )

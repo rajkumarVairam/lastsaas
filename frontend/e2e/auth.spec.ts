@@ -42,16 +42,16 @@ test.describe('Authentication flows', () => {
   test('root admin login reaches admin panel', async ({ page }) => {
     const { email, password } = seed.rootAdmin;
     await loginAs(page, email, password);
-    await page.goto('/last');
-    await expect(page).toHaveURL(/\/last/, { timeout: 10_000 });
+    await page.goto('/admin');
+    await expect(page).toHaveURL(/\/admin/, { timeout: 10_000 });
     await expect(page.locator('body')).not.toBeEmpty();
   });
 
   test('non-root user cannot access admin routes', async ({ page }) => {
     const { email, password } = seed.activeOwner;
     await loginAs(page, email, password);
-    await page.goto('/last');
-    await expect(page).not.toHaveURL('/last', { timeout: 10_000 });
+    await page.goto('/admin');
+    await expect(page).not.toHaveURL('/admin', { timeout: 10_000 });
   });
 
   test('signup form is accessible', async ({ page }) => {

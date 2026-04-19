@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"lastsaas/internal/auth"
-	"lastsaas/internal/config"
-	"lastsaas/internal/db"
-	"lastsaas/internal/models"
+	"saasquickstart/internal/auth"
+	"saasquickstart/internal/config"
+	"saasquickstart/internal/db"
+	"saasquickstart/internal/models"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -57,7 +57,7 @@ func MustConnectTestDB(t *testing.T) (*db.MongoDB, func()) {
 	t.Helper()
 
 	loadEnvTest()
-	os.Setenv("LASTSAAS_ENV", "test")
+	os.Setenv("APP_ENV", "test")
 	SetConfigDir(t)
 
 	// Skip gracefully when no MongoDB URI is configured (e.g. in CI without .env.test)
@@ -101,7 +101,7 @@ func MustConnectTestDB(t *testing.T) (*db.MongoDB, func()) {
 // Returns nil and a no-op cleanup if MONGODB_URI is not set.
 func ConnectTestDB() (*db.MongoDB, func()) {
 	loadEnvTest()
-	os.Setenv("LASTSAAS_ENV", "test")
+	os.Setenv("APP_ENV", "test")
 	findAndSetConfigDir()
 
 	uri := os.Getenv("MONGODB_URI")
@@ -211,7 +211,7 @@ func CleanupCollections(t *testing.T, database *db.MongoDB) {
 func TestConfig(t *testing.T) *config.Config {
 	t.Helper()
 	loadEnvTest()
-	os.Setenv("LASTSAAS_ENV", "test")
+	os.Setenv("APP_ENV", "test")
 	SetConfigDir(t)
 
 	cfg, err := config.Load("test")

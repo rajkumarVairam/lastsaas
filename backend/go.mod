@@ -1,4 +1,4 @@
-module lastsaas
+module saasquickstart
 
 go 1.25
 

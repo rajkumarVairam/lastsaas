@@ -381,7 +381,7 @@ export default function LogsPage() {
                         <td className="px-4 py-3">
                           {log.userId ? (
                             <Link
-                              to={`/last/users/${log.userId}`}
+                              to={`/admin/users/${log.userId}`}
                               className="text-primary-400 hover:text-primary-300 text-xs font-mono transition-colors"
                               onClick={(e) => e.stopPropagation()}
                             >
@@ -412,7 +412,7 @@ export default function LogsPage() {
                               {log.tenantId && (
                                 <div>
                                   <span className="text-dark-400">Tenant: </span>
-                                  <Link to={`/last/tenants/${log.tenantId}`} className="text-primary-400 hover:text-primary-300 font-mono text-xs">
+                                  <Link to={`/admin/tenants/${log.tenantId}`} className="text-primary-400 hover:text-primary-300 font-mono text-xs">
                                     {log.tenantId}
                                   </Link>
                                 </div>
@@ -420,7 +420,7 @@ export default function LogsPage() {
                               {log.userId && (
                                 <div>
                                   <span className="text-dark-400">User: </span>
-                                  <Link to={`/last/users/${log.userId}`} className="text-primary-400 hover:text-primary-300 font-mono text-xs">
+                                  <Link to={`/admin/users/${log.userId}`} className="text-primary-400 hover:text-primary-300 font-mono text-xs">
                                     {log.userId}
                                   </Link>
                                 </div>

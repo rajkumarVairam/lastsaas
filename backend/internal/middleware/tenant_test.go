@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"lastsaas/internal/models"
+	"saasquickstart/internal/models"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -244,7 +244,7 @@ func TestSecurityHeadersApiDocsPath(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	xfo := rr.Header().Get("X-Frame-Options")
-	if xfo != "ALLOW-FROM https://metavert.io" {
+	if xfo != "ALLOW-FROM https://saasquickstart.dev" {
 		t.Errorf("expected ALLOW-FROM for /api/docs, got %q", xfo)
 	}
 

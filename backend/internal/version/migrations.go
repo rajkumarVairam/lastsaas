@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	"lastsaas/internal/db"
+	"saasquickstart/internal/db"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -85,6 +85,17 @@ var migrations = []Migration{
 			}
 			_, err = database.Users().BulkWrite(ctx, models,
 				options.BulkWrite().SetOrdered(false),
+			)
+			return err
+		},
+	},
+	{
+		Version:     "1.3.0",
+		Description: "Rebrand app.name from LastSaaS to SaaSQuickStart in config store",
+		Up: func(ctx context.Context, database *db.MongoDB) error {
+			_, err := database.ConfigVars().UpdateOne(ctx,
+				bson.M{"name": "app.name", "value": bson.M{"$in": bson.A{"LastSaaS", "lastsaas"}}},
+				bson.M{"$set": bson.M{"value": "SaaSQuickStart"}},
 			)
 			return err
 		},

@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"time"
 
-	"lastsaas/internal/cron"
-	"lastsaas/internal/db"
-	"lastsaas/internal/middleware"
-	"lastsaas/internal/models"
+	"saasquickstart/internal/cron"
+	"saasquickstart/internal/db"
+	"saasquickstart/internal/middleware"
+	"saasquickstart/internal/models"
 
 	"github.com/gorilla/mux"
 	"go.mongodb.org/mongo-driver/bson"

@@ -32,13 +32,13 @@ docker compose version
 From your local machine:
 
 ```bash
-scp -i ~/your-key.pem -r docker/mongodb ubuntu@<VM_IP>:~/lastsaas-mongo
+scp -i ~/your-key.pem -r docker/mongodb ubuntu@<VM_IP>:~/saasquickstart-mongo
 ```
 
 On the VM:
 
 ```bash
-cd ~/lastsaas-mongo
+cd ~/saasquickstart-mongo
 cp .env.example .env
 nano .env   # set MONGO_USER, MONGO_PASS, MONGO_DB
 ```
@@ -63,7 +63,7 @@ Verify:
 
 ```bash
 docker compose ps
-docker logs lastsaas-mongo-init
+docker logs saasquickstart-mongo-init
 ```
 
 ---
@@ -100,7 +100,7 @@ Daily at 02:00, kept 7 days locally. Set `S3_BUCKET` + credentials in `.env` to 
 Run a manual backup anytime:
 
 ```bash
-docker exec lastsaas-mongo-backup /scripts/backup.sh
+docker exec saasquickstart-mongo-backup /scripts/backup.sh
 ```
 
 ---
@@ -119,8 +119,8 @@ docker exec lastsaas-mongo-backup /scripts/backup.sh
 
 ```bash
 docker compose logs -f mongo                              # live logs
-docker exec lastsaas-mongo-backup /scripts/backup.sh     # manual backup
-docker exec -it lastsaas-mongo mongosh                   # open a shell
+docker exec saasquickstart-mongo-backup /scripts/backup.sh     # manual backup
+docker exec -it saasquickstart-mongo mongosh                   # open a shell
 docker compose down                                       # stop (data preserved)
 docker compose up -d                                      # restart after VM reboot
 ```

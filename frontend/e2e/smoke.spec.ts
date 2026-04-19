@@ -41,7 +41,7 @@ test.describe('Smoke tests', () => {
   test('admin login → admin panel flow', async ({ page }) => {
     const { email, password } = seed.rootAdmin;
     await loginAs(page, email, password);
-    await page.goto('/last');
+    await page.goto('/admin');
     await page.waitForLoadState('networkidle');
     await expect(page.locator('body')).not.toBeEmpty();
   });

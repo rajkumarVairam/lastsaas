@@ -12,7 +12,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"lastsaas/internal/middleware"
+	"saasquickstart/internal/middleware"
 )
 
 // Code represents a machine-readable error code.

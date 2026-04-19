@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"lastsaas/internal/middleware"
-	"lastsaas/internal/models"
-	"lastsaas/internal/telemetry"
+	"saasquickstart/internal/middleware"
+	"saasquickstart/internal/models"
+	"saasquickstart/internal/telemetry"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )

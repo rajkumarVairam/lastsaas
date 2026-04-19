@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"time"
 
-	"lastsaas/internal/db"
-	"lastsaas/internal/models"
+	"saasquickstart/internal/db"
+	"saasquickstart/internal/models"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -78,8 +78,8 @@ func sendUpgradeMessage(ctx context.Context, database *db.MongoDB, newVersion st
 	msg := models.Message{
 		ID:        primitive.NewObjectID(),
 		UserID:    membership.UserID,
-		Subject:   "Welcome to LastSaaS v" + newVersion,
-		Body:      "Your system has been upgraded to version " + newVersion + ". Thank you for using LastSaaS!",
+		Subject:   "Welcome to SaaSQuickStart v" + newVersion,
+		Body:      "Your system has been upgraded to version " + newVersion + ". Thank you for using SaaSQuickStart!",
 		IsSystem:  true,
 		Read:      false,
 		CreatedAt: time.Now(),

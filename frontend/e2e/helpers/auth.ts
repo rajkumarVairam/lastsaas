@@ -37,9 +37,9 @@ export async function loginAs(page: Page, email: string, _password: string): Pro
   await page.waitForLoadState('domcontentloaded');
 
   await page.evaluate(({ accessToken, refreshToken, tenantId }) => {
-    localStorage.setItem('lastsaas_access_token', accessToken);
-    localStorage.setItem('lastsaas_refresh_token', refreshToken);
-    localStorage.setItem('lastsaas_active_tenant', tenantId);
+    localStorage.setItem('saasquickstart_access_token', accessToken);
+    localStorage.setItem('saasquickstart_refresh_token', refreshToken);
+    localStorage.setItem('saasquickstart_active_tenant', tenantId);
   }, { accessToken: entry.accessToken, refreshToken: entry.refreshToken ?? '', tenantId: entry.tenantId });
 
   await page.goto('/dashboard');

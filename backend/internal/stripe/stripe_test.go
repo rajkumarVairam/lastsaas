@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"lastsaas/internal/models"
-	"lastsaas/internal/testutil"
+	"saasquickstart/internal/models"
+	"saasquickstart/internal/testutil"
 
 	gostripe "github.com/stripe/stripe-go/v82"
 	"go.mongodb.org/mongo-driver/bson/primitive"

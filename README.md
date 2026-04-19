@@ -1,24 +1,24 @@
-# LastSaaS
+# SaaSQuickStart
 
-[![CI](https://github.com/jonradoff/lastsaas/actions/workflows/ci.yml/badge.svg)](https://github.com/jonradoff/lastsaas/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/jonradoff/lastsaas/branch/master/graph/badge.svg)](https://codecov.io/gh/jonradoff/lastsaas)
-[![Go Report Card](https://goreportcard.com/badge/github.com/jonradoff/lastsaas)](https://goreportcard.com/report/github.com/jonradoff/lastsaas)
+[![CI](https://github.com/jonradoff/saasquickstart/actions/workflows/ci.yml/badge.svg)](https://github.com/jonradoff/saasquickstart/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/jonradoff/saasquickstart/branch/master/graph/badge.svg)](https://codecov.io/gh/jonradoff/saasquickstart)
+[![Go Report Card](https://goreportcard.com/badge/github.com/jonradoff/saasquickstart)](https://goreportcard.com/report/github.com/jonradoff/saasquickstart)
 
 **The last SaaS boilerplate you'll ever need.**
 
-LastSaaS is a complete, production-ready SaaS foundation built entirely through conversation with [Claude Code](https://claude.ai/claude-code). It gives you multi-tenant account management, authentication, role-based access control, white-label branding, Stripe billing, API keys, outgoing webhooks, a full admin interface, system health monitoring, credit-based usage tracking, and product analytics with telemetry — everything you need to launch a SaaS business, ready to customize for your specific product.
+SaaSQuickStart is a complete, production-ready SaaS foundation built entirely through conversation with [Claude Code](https://claude.ai/claude-code). It gives you multi-tenant account management, authentication, role-based access control, white-label branding, Stripe billing, API keys, outgoing webhooks, a full admin interface, system health monitoring, credit-based usage tracking, and product analytics with telemetry — everything you need to launch a SaaS business, ready to customize for your specific product.
 
-The bottleneck for building software isn't engineering capacity anymore — it's imagination. LastSaaS proves it: a single person with a clear vision and an AI agent can stand up what used to require a team and months of work. And because it was built with [Claude Code](https://claude.ai/claude-code), the codebase is fork-ready for agentic engineering — point an AI agent at it and keep building your product through conversation.
+The bottleneck for building software isn't engineering capacity anymore — it's imagination. SaaSQuickStart proves it: a single person with a clear vision and an AI agent can stand up what used to require a team and months of work. And because it was built with [Claude Code](https://claude.ai/claude-code), the codebase is fork-ready for agentic engineering — point an AI agent at it and keep building your product through conversation.
 
-**[Project Page](https://metavert.io/lastsaas)**
+**[Project Page](https://saasquickstart.dev/saasquickstart)**
 
 ---
 
-## Why LastSaaS Exists
+## Why SaaSQuickStart Exists
 
 Every SaaS product needs the same boring foundation: user accounts, teams, roles, authentication, admin dashboards, billing, usage limits, branding, webhooks, API keys. Historically, building that foundation meant weeks of plumbing before you could write a single line of your actual product.
 
-LastSaaS eliminates that. Fork it, point an AI agent at it, and start building your product on top of a foundation that already handles:
+SaaSQuickStart eliminates that. Fork it, point an AI agent at it, and start building your product on top of a foundation that already handles:
 
 - Multi-tenant isolation with role-based access
 - JWT authentication with refresh token rotation
@@ -55,29 +55,29 @@ This is open-source infrastructure for the agentic era of software — where the
 
 ## How It Compares
 
-If you're evaluating SaaS boilerplates, you've probably looked at ShipFast, Supastarter, MakerKit, SaaS Pegasus, and Gravity. Here's why technical founders choose LastSaaS instead.
+If you're evaluating SaaS boilerplates, you've probably looked at ShipFast, Supastarter, MakerKit, SaaS Pegasus, and Gravity. Here's why technical founders choose SaaSQuickStart instead.
 
-**Free and open-source.** ShipFast costs $169, MakerKit runs $199–599, Supastarter starts at $299, SaaS Pegasus charges $249/year, and Gravity is under $1K. LastSaaS is MIT-licensed — fork it, ship it, never pay a license fee. You own the code completely.
+**Free and open-source.** ShipFast costs $169, MakerKit runs $199–599, Supastarter starts at $299, SaaS Pegasus charges $249/year, and Gravity is under $1K. SaaSQuickStart is MIT-licensed — fork it, ship it, never pay a license fee. You own the code completely.
 
-**Go backend, not another Next.js project.** ShipFast, Supastarter, MakerKit, and Gravity are all JavaScript/TypeScript stacks. SaaS Pegasus uses Django. LastSaaS pairs a Go backend with a React + TypeScript frontend — giving you compiled-binary deployment, low memory footprint (a 14MB Alpine container), and the concurrency model that Go is known for. If your SaaS will handle real traffic or you want a backend that isn't a Node.js monolith, this matters.
+**Go backend, not another Next.js project.** ShipFast, Supastarter, MakerKit, and Gravity are all JavaScript/TypeScript stacks. SaaS Pegasus uses Django. SaaSQuickStart pairs a Go backend with a React + TypeScript frontend — giving you compiled-binary deployment, low memory footprint (a 14MB Alpine container), and the concurrency model that Go is known for. If your SaaS will handle real traffic or you want a backend that isn't a Node.js monolith, this matters.
 
-**Genuine multi-tenancy.** ShipFast has no multi-tenancy at all. SaaS Pegasus and Gravity offer basic team features but not true tenant isolation. LastSaaS gives you full multi-tenant architecture: tenant-scoped data isolation, three-tier RBAC (owner/admin/user), team invitations, ownership transfer, per-tenant activity logs, and per-tenant billing. This is the difference between "users can collaborate" and "each customer gets their own isolated workspace."
+**Genuine multi-tenancy.** ShipFast has no multi-tenancy at all. SaaS Pegasus and Gravity offer basic team features but not true tenant isolation. SaaSQuickStart gives you full multi-tenant architecture: tenant-scoped data isolation, three-tier RBAC (owner/admin/user), team invitations, ownership transfer, per-tenant activity logs, and per-tenant billing. This is the difference between "users can collaborate" and "each customer gets their own isolated workspace."
 
-**White-label branding built in.** Most boilerplates give you a theme toggle at best. LastSaaS includes a full white-label system: custom app name, logo, colors, fonts, landing page, custom pages, CSS injection, favicon, configurable navigation with entitlement gating, and auth page customization. If you're building a platform where customers see your brand (not yours-plus-a-framework), this saves weeks.
+**White-label branding built in.** Most boilerplates give you a theme toggle at best. SaaSQuickStart includes a full white-label system: custom app name, logo, colors, fonts, landing page, custom pages, CSS injection, favicon, configurable navigation with entitlement gating, and auth page customization. If you're building a platform where customers see your brand (not yours-plus-a-framework), this saves weeks.
 
-**Outgoing webhooks, not just Stripe webhooks.** None of the alternatives — ShipFast, Supastarter, MakerKit, SaaS Pegasus, or Gravity — include an outgoing webhook system. LastSaaS ships with 19 event types across billing, team lifecycle, user lifecycle, credits, and security events, with HMAC-SHA256 signing, delivery tracking, and test events. Your customers can integrate with your platform from day one.
+**Outgoing webhooks, not just Stripe webhooks.** None of the alternatives — ShipFast, Supastarter, MakerKit, SaaS Pegasus, or Gravity — include an outgoing webhook system. SaaSQuickStart ships with 19 event types across billing, team lifecycle, user lifecycle, credits, and security events, with HMAC-SHA256 signing, delivery tracking, and test events. Your customers can integrate with your platform from day one.
 
-**API keys with scoped access.** ShipFast, Supastarter, and MakerKit don't include API key management. LastSaaS provides `lsk_`-prefixed API keys with admin and user authority scopes, SHA-256 hashed storage, and last-used tracking — ready for your customers to build integrations.
+**API keys with scoped access.** ShipFast, Supastarter, and MakerKit don't include API key management. SaaSQuickStart provides `lsk_`-prefixed API keys with admin and user authority scopes, SHA-256 hashed storage, and last-used tracking — ready for your customers to build integrations.
 
-**Health monitoring and financial dashboards.** No competing boilerplate includes system health monitoring. LastSaaS collects CPU, memory, disk, HTTP, and MongoDB metrics every 60 seconds across all nodes, with 8 real-time charts, threshold alerting, and 30-day retention. The financial dashboard gives you revenue, ARR, DAU, and MAU time-series out of the box.
+**Health monitoring and financial dashboards.** No competing boilerplate includes system health monitoring. SaaSQuickStart collects CPU, memory, disk, HTTP, and MongoDB metrics every 60 seconds across all nodes, with 8 real-time charts, threshold alerting, and 30-day retention. The financial dashboard gives you revenue, ARR, DAU, and MAU time-series out of the box.
 
-**Product analytics with telemetry.** No competing boilerplate includes product analytics. LastSaaS auto-instruments the customer journey — visitor → signup → plan page → checkout → paid conversion → upgrade — and visualizes it as a conversion funnel. The PM dashboard includes SaaS KPIs (MRR, ARR, ARPU, LTV, churn rate, trial conversion), retention cohort analysis, engagement metrics (DAU/WAU/MAU for paying subscribers), and a custom event explorer. A Go SDK and REST API let you track your own events with zero configuration.
+**Product analytics with telemetry.** No competing boilerplate includes product analytics. SaaSQuickStart auto-instruments the customer journey — visitor → signup → plan page → checkout → paid conversion → upgrade — and visualizes it as a conversion funnel. The PM dashboard includes SaaS KPIs (MRR, ARR, ARPU, LTV, churn rate, trial conversion), retention cohort analysis, engagement metrics (DAU/WAU/MAU for paying subscribers), and a custom event explorer. A Go SDK and REST API let you track your own events with zero configuration.
 
-**MCP server for AI-native operations.** This is unique to LastSaaS. A built-in Model Context Protocol server with 32 read-only tools lets you connect Claude (or any MCP-compatible AI) directly to your running application. Query your ARR trend, investigate error spikes, audit API keys, or review system health — all in natural language. No other SaaS boilerplate offers agentic admin access.
+**MCP server for AI-native operations.** This is unique to SaaSQuickStart. A built-in Model Context Protocol server with 32 read-only tools lets you connect Claude (or any MCP-compatible AI) directly to your running application. Query your ARR trend, investigate error spikes, audit API keys, or review system health — all in natural language. No other SaaS boilerplate offers agentic admin access.
 
-**Built for AI-assisted development.** LastSaaS was built entirely through conversation with Claude Code, and the codebase is designed to keep being built that way. Consistent patterns, clear naming, and a structure AI agents navigate fluently. Fork it, point an agent at it, describe your product, and keep going. The competing boilerplates were built for manual development — LastSaaS is built for the way software is made now.
+**Built for AI-assisted development.** SaaSQuickStart was built entirely through conversation with Claude Code, and the codebase is designed to keep being built that way. Consistent patterns, clear naming, and a structure AI agents navigate fluently. Fork it, point an agent at it, describe your product, and keep going. The competing boilerplates were built for manual development — SaaSQuickStart is built for the way software is made now.
 
-| | LastSaaS | ShipFast | Supastarter | MakerKit | Pegasus | Gravity |
+| | SaaSQuickStart | ShipFast | Supastarter | MakerKit | Pegasus | Gravity |
 |---|---|---|---|---|---|---|
 | **Price** | **Free (MIT)** | $169 | $299+ | $199–599 | $249/yr | <$1K |
 | **Stack** | Go + React | Next.js | Next.js / Nuxt | Next.js | Django | Node + React |
@@ -278,22 +278,22 @@ If you're evaluating SaaS boilerplates, you've probably looked at ShipFast, Supa
 - Auto-versioned from the VERSION file
 
 ### CLI Administration
-- `lastsaas setup` — Initialize the system (create root tenant + owner)
-- `lastsaas start` / `stop` / `restart` — Server process management
-- `lastsaas change-password` — Reset any user's password
-- `lastsaas send-message` — Send system messages to users
-- `lastsaas transfer-root-owner` — Transfer root tenant ownership
-- `lastsaas config list|get|set` — Manage configuration variables
-- `lastsaas version` — Show binary and database versions
-- `lastsaas status` — Check system health
-- `lastsaas mcp` — Start the MCP server (see [MCP Server](#mcp-server-ai-admin-access) below)
+- `saasquickstart setup` — Initialize the system (create root tenant + owner)
+- `saasquickstart start` / `stop` / `restart` — Server process management
+- `saasquickstart change-password` — Reset any user's password
+- `saasquickstart send-message` — Send system messages to users
+- `saasquickstart transfer-root-owner` — Transfer root tenant ownership
+- `saasquickstart config list|get|set` — Manage configuration variables
+- `saasquickstart version` — Show binary and database versions
+- `saasquickstart status` — Check system health
+- `saasquickstart mcp` — Start the MCP server (see [MCP Server](#mcp-server-ai-admin-access) below)
 
 ### MCP Server (AI Admin Access)
 
 A built-in [Model Context Protocol](https://modelcontextprotocol.io) server gives AI assistants like Claude read-only access to your admin data — dashboards, users, tenants, financials, logs, health, and more. Useful for asking questions like "what's our ARR trend?" or "show me critical logs from the last hour" in natural language.
 
 - **32 read-only tools** across 14 categories — no write operations, safe by design
-- **2 resources** — `lastsaas://dashboard` and `lastsaas://health` for automatic context
+- **2 resources** — `saasquickstart://dashboard` and `saasquickstart://health` for automatic context
 - **API key authentication** — requires a root-tenant API key, same auth as the admin API
 - **Stdio transport** — runs locally, compatible with Claude Desktop and Claude Code
 
@@ -379,8 +379,8 @@ A built-in [Model Context Protocol](https://modelcontextprotocol.io) server give
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/jonradoff/lastsaas.git
-cd lastsaas
+git clone https://github.com/jonradoff/saasquickstart.git
+cd saasquickstart
 ```
 
 ### 2. Run the setup script
@@ -428,7 +428,7 @@ Run the CLI setup to create the root tenant and admin account:
 
 ```bash
 cd backend
-go run ./cmd/lastsaas setup
+go run ./cmd/saasquickstart setup
 ```
 
 This creates the root tenant (your admin organization) and the owner account. You can now log in at `http://localhost:4280`.
@@ -437,7 +437,7 @@ This creates the root tenant (your admin organization) and the owner account. Yo
 
 ## Setting Up Stripe Billing
 
-Stripe integration is optional but required for paid subscriptions, credit bundle purchases, and invoice generation. If you skip this section, LastSaaS works as a free-tier-only platform.
+Stripe integration is optional but required for paid subscriptions, credit bundle purchases, and invoice generation. If you skip this section, SaaSQuickStart works as a free-tier-only platform.
 
 ### 1. Create a Stripe account
 
@@ -503,7 +503,7 @@ Config files live in `backend/config/`:
 - `dev.example.yaml` / `prod.example.yaml` — committed templates
 - `dev.yaml` / `prod.yaml` — your actual configs (gitignored)
 
-Set `LASTSAAS_ENV=dev` or `LASTSAAS_ENV=prod` to select which config to load. Defaults to `dev`.
+Set `APP_ENV=dev` or `APP_ENV=prod` to select which config to load. Defaults to `dev`.
 
 Secrets are referenced as `${ENV_VAR}` in YAML and expanded from environment variables at load time. Default values use `${VAR:default}` syntax.
 
@@ -525,7 +525,7 @@ Secrets are referenced as `${ENV_VAR}` in YAML and expanded from environment var
 | `GOOGLE_REDIRECT_URL` | No | Google OAuth redirect URL |
 | `RESEND_API_KEY` | No | Resend email service API key |
 | `FROM_EMAIL` | No | Sender email address (default: noreply@yourdomain.com) |
-| `FROM_NAME` | No | Sender name (default: LastSaaS) |
+| `FROM_NAME` | No | Sender name (default: SaaSQuickStart) |
 | `OBJECTSTORE_PROVIDER` | No | Object store provider: `r2`, `s3`, or `db` (default: `db` — stores in MongoDB) |
 | `OBJECTSTORE_ACCESS_KEY` | No | R2/S3 access key ID |
 | `OBJECTSTORE_SECRET_KEY` | No | R2/S3 secret access key |
@@ -539,11 +539,11 @@ Secrets are referenced as `${ENV_VAR}` in YAML and expanded from environment var
 ## Project Structure
 
 ```
-lastsaas/
+saasquickstart/
   backend/
     cmd/
       server/main.go              Entry point (HTTP server, route wiring)
-      lastsaas/main.go            CLI administration tool + MCP server
+      saasquickstart/main.go            CLI administration tool + MCP server
     config/                       YAML config files
     internal/
       api/handlers/               HTTP handlers (auth, admin, tenant, billing, branding, webhooks, etc.)
@@ -591,7 +591,7 @@ lastsaas/
 
 ## API Documentation
 
-LastSaaS includes built-in, self-hosted API documentation:
+SaaSQuickStart includes built-in, self-hosted API documentation:
 
 - **Interactive HTML reference**: `GET /api/docs` — expandable endpoint cards with request/response examples
 - **Markdown reference**: `GET /api/docs/markdown` — for embedding in external documentation
@@ -602,11 +602,11 @@ The documentation is generated from code and always matches the running version.
 
 ## MCP Server Setup
 
-The MCP server lets AI assistants query your admin data in natural language. It proxies read-only requests to the LastSaaS admin API using an API key.
+The MCP server lets AI assistants query your admin data in natural language. It proxies read-only requests to the SaaSQuickStart admin API using an API key.
 
 ### Prerequisites
 
-1. A running LastSaaS instance (local or deployed)
+1. A running SaaSQuickStart instance (local or deployed)
 2. A root-tenant API key — create one in **Admin → API Keys** with **admin** authority
 
 ### Usage with Claude Desktop
@@ -616,8 +616,8 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
 ```json
 {
   "mcpServers": {
-    "lastsaas": {
-      "command": "/path/to/lastsaas",
+    "saasquickstart": {
+      "command": "/path/to/saasquickstart",
       "args": ["mcp"],
       "env": {
         "LASTSAAS_URL": "https://your-app.fly.dev",
@@ -635,8 +635,8 @@ Add to your project's `.mcp.json`:
 ```json
 {
   "mcpServers": {
-    "lastsaas": {
-      "command": "/path/to/lastsaas",
+    "saasquickstart": {
+      "command": "/path/to/saasquickstart",
       "args": ["mcp"],
       "env": {
         "LASTSAAS_URL": "https://your-app.fly.dev",
@@ -651,14 +651,14 @@ Add to your project's `.mcp.json`:
 
 ```bash
 cd backend
-go build -o lastsaas ./cmd/lastsaas
+go build -o saasquickstart ./cmd/saasquickstart
 ```
 
 ### Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `LASTSAAS_URL` | Yes | Base URL of the LastSaaS instance (e.g. `http://localhost:4290` or `https://your-app.fly.dev`) |
+| `LASTSAAS_URL` | Yes | Base URL of the SaaSQuickStart instance (e.g. `http://localhost:4290` or `https://your-app.fly.dev`) |
 | `LASTSAAS_API_KEY` | Yes | Root-tenant API key with admin authority (starts with `lsk_`) |
 
 ### Available Tools (26)
@@ -894,7 +894,7 @@ These examples show how the MCP tools work in practice. Each example lists the u
 
 ### Fly.io
 
-LastSaaS includes a Dockerfile and Fly.io configuration for production deployment.
+SaaSQuickStart includes a Dockerfile and Fly.io configuration for production deployment.
 
 ```bash
 # Install flyctl if needed
@@ -930,7 +930,7 @@ The Docker image works anywhere containers run. The only external dependency is 
 
 ## Fork It and Keep Building with AI
 
-LastSaaS was built entirely through conversation with [Claude Code](https://claude.ai/claude-code) — every feature, every handler, every component was described in natural language and implemented by an AI agent. But the real point isn't that it *was* built this way — it's that it's designed to *keep* being built this way.
+SaaSQuickStart was built entirely through conversation with [Claude Code](https://claude.ai/claude-code) — every feature, every handler, every component was described in natural language and implemented by an AI agent. But the real point isn't that it *was* built this way — it's that it's designed to *keep* being built this way.
 
 The codebase follows consistent patterns, uses clear naming, and maintains a structure that AI agents navigate fluently. Fork it, point Claude Code at it, and start describing your product. The agent already understands the patterns — authentication, tenancy, billing, middleware, events — and builds on top of them naturally. You're not starting from scratch; you're continuing a conversation.
 
@@ -957,9 +957,9 @@ Here's what's already wired up for you:
 
 ## Privacy Policy
 
-LastSaaS is self-hosted software — you control your database, your hosting, and your data. The MCP server connects to your LastSaaS instance via the HTTP API using read-only tools — no data is transmitted to Metavert LLC or any third party.
+SaaSQuickStart is self-hosted software — you control your database, your hosting, and your data. The MCP server connects to your SaaSQuickStart instance via the HTTP API using read-only tools — no data is transmitted to Metavert LLC or any third party.
 
-For the full privacy policy, see: https://www.metavert.io/lastsaas-privacy-policy
+For the full privacy policy, see: https://www.saasquickstart.dev/saasquickstart-privacy-policy
 
 ---
 

@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"lastsaas/internal/db"
-	"lastsaas/internal/models"
+	"saasquickstart/internal/db"
+	"saasquickstart/internal/models"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"

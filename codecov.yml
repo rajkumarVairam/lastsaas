@@ -1,5 +1,5 @@
 fixes:
-  - "lastsaas/::backend/"
+  - "saasquickstart/::backend/"
 
 coverage:
   status:

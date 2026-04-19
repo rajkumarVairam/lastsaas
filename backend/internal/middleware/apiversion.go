@@ -3,7 +3,7 @@ package middleware
 import (
 	"net/http"
 
-	"lastsaas/internal/version"
+	"saasquickstart/internal/version"
 )
 
 // APIVersion sets the X-API-Version response header on all API responses.

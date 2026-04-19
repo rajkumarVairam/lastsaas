@@ -205,7 +205,7 @@ export default function TenantsPage() {
                   {tenants.map((tenant) => (
                     <tr
                       key={tenant.id}
-                      onClick={() => navigate(`/last/tenants/${tenant.id}`)}
+                      onClick={() => navigate(`/admin/tenants/${tenant.id}`)}
                       className="border-b border-dark-800/50 hover:bg-dark-800/30 transition-colors cursor-pointer"
                     >
                       <td className="px-6 py-3.5">

@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"lastsaas/internal/db"
-	"lastsaas/internal/models"
+	"saasquickstart/internal/db"
+	"saasquickstart/internal/models"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -26,7 +26,7 @@ const (
 )
 
 // Service provides telemetry tracking and querying for product analytics.
-// Apps using LastSaaS as a library can call Track/TrackBatch directly
+// Apps using SaaSQuickStart as a library can call Track/TrackBatch directly
 // without going through the HTTP API.
 type Service struct {
 	db *db.MongoDB

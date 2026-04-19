@@ -32,7 +32,7 @@ Quick sanity checks, the first things to look at if something is broken.
 | Login page is accessible | Email + password fields present |
 | Signup page is accessible | Registration form present |
 | Full login → dashboard → logout flow | Active user: login, land on /dashboard, clear token, redirect to /login |
-| Admin login → admin panel flow | Root admin: login, navigate to /last, admin UI loads |
+| Admin login → admin panel flow | Root admin: login, navigate to /admin, admin UI loads |
 
 ---
 
@@ -44,8 +44,8 @@ Quick sanity checks, the first things to look at if something is broken.
 | Invalid credentials shows error | Bad email/password returns error or rate-limit message, stays on /login |
 | Protected pages redirect unauthenticated users | /dashboard, /team, /plan, /settings → /login |
 | Active user login reaches dashboard | JWT injection lands on /dashboard |
-| Root admin login reaches admin panel | rootAdmin JWT, navigate to /last, URL confirms access |
-| Non-root user cannot access admin routes | activeOwner navigates to /last → redirected away |
+| Root admin login reaches admin panel | rootAdmin JWT, navigate to /admin, URL confirms access |
+| Non-root user cannot access admin routes | activeOwner navigates to /admin → redirected away |
 | Signup form is accessible | Submit button visible |
 | Login page links to signup | Link present |
 | Signup page links to login | Link present |
@@ -56,17 +56,17 @@ Quick sanity checks, the first things to look at if something is broken.
 
 | Test | What it verifies |
 |---|---|
-| Admin routes redirect unauthenticated users | /last, /last/users, /last/tenants, /last/logs → /login |
-| Root admin can access users list | /last/users loads for rootAdmin |
-| Root admin can access tenants list | /last/tenants loads |
-| Root admin can access plans page | /last/plans loads, plan content present |
-| Root admin can access health page | /last/health loads |
-| Root admin can access logs page | /last/logs loads |
-| Root admin can access financial page | /last/financial loads |
-| Root admin can access config page | /last/config loads |
-| Root admin can access API docs page | /last/api loads |
-| Non-root user redirected away from admin panel | activeOwner → /last gets blocked |
-| Root admin can view specific tenant profile | /last/tenants/{id} loads with real tenant ID from manifest |
+| Admin routes redirect unauthenticated users | /admin, /admin/users, /admin/tenants, /admin/logs → /login |
+| Root admin can access users list | /admin/users loads for rootAdmin |
+| Root admin can access tenants list | /admin/tenants loads |
+| Root admin can access plans page | /admin/plans loads, plan content present |
+| Root admin can access health page | /admin/health loads |
+| Root admin can access logs page | /admin/logs loads |
+| Root admin can access financial page | /admin/financial loads |
+| Root admin can access config page | /admin/config loads |
+| Root admin can access API docs page | /admin/api loads |
+| Non-root user redirected away from admin panel | activeOwner → /admin gets blocked |
+| Root admin can view specific tenant profile | /admin/tenants/{id} loads with real tenant ID from manifest |
 
 ---
 

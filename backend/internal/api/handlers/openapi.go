@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"lastsaas/internal/version"
+	"saasquickstart/internal/version"
 )
 
 // OpenAPI JSON types (subset of OpenAPI 3.0 spec sufficient for our API)
@@ -97,7 +97,7 @@ func DocsOpenAPI(w http.ResponseWriter, r *http.Request) {
 	spec := openAPISpec{
 		OpenAPI: "3.0.3",
 		Info: openAPIInfo{
-			Title:   "LastSaaS API",
+			Title:   "SaaSQuickStart API",
 			Version: version.Current,
 		},
 		Servers: []openAPIServer{

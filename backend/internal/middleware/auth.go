@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"lastsaas/internal/auth"
-	"lastsaas/internal/db"
-	"lastsaas/internal/models"
+	"saasquickstart/internal/auth"
+	"saasquickstart/internal/db"
+	"saasquickstart/internal/models"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"

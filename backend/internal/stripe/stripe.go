@@ -6,9 +6,9 @@ import (
 	"net/url"
 	"time"
 
-	"lastsaas/internal/apicounter"
-	"lastsaas/internal/db"
-	"lastsaas/internal/models"
+	"saasquickstart/internal/apicounter"
+	"saasquickstart/internal/db"
+	"saasquickstart/internal/models"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"

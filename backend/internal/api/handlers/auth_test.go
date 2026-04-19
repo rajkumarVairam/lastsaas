@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"lastsaas/internal/testutil"
+	"saasquickstart/internal/testutil"
 )
 
 func TestIntegration_RegisterSuccess(t *testing.T) {

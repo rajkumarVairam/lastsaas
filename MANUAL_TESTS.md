@@ -9,7 +9,7 @@ Everything in this document requires a human to verify — either because it inv
 Run the seed command to populate these accounts before manual testing:
 
 ```bash
-cd backend && go run ./cmd/lastsaas seed --reset
+cd backend && go run ./cmd/saasquickstart seed --reset
 ```
 
 All accounts use password: **`Seed123!`**  
@@ -18,7 +18,7 @@ Backend URL: **http://localhost:4290**
 
 | Account key | Email | Billing state | Notes |
 |---|---|---|---|
-| rootAdmin | root-admin@seed.local | — | Root tenant admin, full /last access |
+| rootAdmin | root-admin@seed.local | — | Root tenant admin, full /admin access |
 | freeOwner | free@seed.local | None (free plan) | Hits entitlement gates |
 | trialOwner | trial@seed.local | Active (trial used) | trialUsedAt is set |
 | activeOwner | active@seed.local | Active monthly | Full Pro access |
@@ -101,7 +101,7 @@ Backend URL: **http://localhost:4290**
 | Repeat login with same Google account | Same account, no duplicate user created |
 | Click "Continue with GitHub" | GitHub OAuth flow, same behaviour |
 | Click "Continue with Microsoft" | Microsoft OAuth flow, same behaviour |
-| First OAuth login creates account | User appears in admin /last/users |
+| First OAuth login creates account | User appears in admin /admin/users |
 
 ---
 
@@ -173,17 +173,17 @@ Backend URL: **http://localhost:4290**
 
 | Step | Expected result |
 |---|---|
-| Go to /last/users, find a seeded user | User record shown with full detail |
-| Click user → view profile page | /last/users/{id} loads, shows memberships |
-| Go to /last/tenants, find a seeded tenant | Tenant record shown |
-| Click tenant → view profile | /last/tenants/{id} loads |
-| Go to /last/plans, create a new plan | Plan form submits, plan appears in list |
+| Go to /admin/users, find a seeded user | User record shown with full detail |
+| Click user → view profile page | /admin/users/{id} loads, shows memberships |
+| Go to /admin/tenants, find a seeded tenant | Tenant record shown |
+| Click tenant → view profile | /admin/tenants/{id} loads |
+| Go to /admin/plans, create a new plan | Plan form submits, plan appears in list |
 | Edit existing plan entitlements | Changes saved, reflected in user's /plan page |
-| Go to /last/promotions, create a promo code | Code created |
+| Go to /admin/promotions, create a promo code | Code created |
 | Apply promo code at checkout | Discount applied |
-| Go to /last/announcements, create announcement | Announcement appears in /messages for users |
-| Go to /last/branding, upload logo | Logo appears in app header |
-| Go to /last/config, change a config value | Value persisted, reflected in app behavior |
+| Go to /admin/announcements, create announcement | Announcement appears in /messages for users |
+| Go to /admin/branding, upload logo | Logo appears in app header |
+| Go to /admin/config, change a config value | Value persisted, reflected in app behavior |
 
 ---
 
@@ -204,7 +204,7 @@ Backend URL: **http://localhost:4290**
 
 | Step | Expected result |
 |---|---|
-| Go to /last/branding | Branding config page loads |
+| Go to /admin/branding | Branding config page loads |
 | Set custom primary colour | App header and buttons show new colour |
 | Upload logo | Logo appears in app header for all tenants |
 | Set custom app name | Page title and nav show custom name |
@@ -224,7 +224,7 @@ Backend URL: **http://localhost:4290**
 | Add endpoint URL | Endpoint saved |
 | Trigger an event (e.g. update profile) | Webhook delivered to endpoint within 5s |
 | Check webhook payload | JSON with event type, tenantId, timestamp |
-| Set endpoint to unreachable URL | Delivery fails, retried (check /last/logs) |
+| Set endpoint to unreachable URL | Delivery fails, retried (check /admin/logs) |
 | Check event log in admin panel | Failed delivery shown with retry count |
 
 ---
@@ -254,7 +254,7 @@ Automated tests verify pages load. Manual tests verify the UI is correct.
 | /dashboard | Sidebar collapses or becomes drawer on mobile |
 | /team | Table scrolls horizontally or stacks on mobile |
 | /plan | Plan cards stack vertically on mobile |
-| /last/users | Admin table scrolls horizontally |
+| /admin/users | Admin table scrolls horizontally |
 
 ---
 
@@ -264,7 +264,7 @@ Automated tests verify pages load. Manual tests verify the UI is correct.
 
 **Backend changes:**
 1. Add a seed scenario in `backend/internal/seed/seed.go` if a new billing state, role, or user type is needed
-2. Re-run `go run ./cmd/lastsaas seed --reset` to verify it works
+2. Re-run `go run ./cmd/saasquickstart seed --reset` to verify it works
 3. Add the new account to the credentials table in this document
 
 **Frontend changes:**

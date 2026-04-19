@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"lastsaas/internal/config"
+	"saasquickstart/internal/config"
 )
 
 // Store is the provider-agnostic interface for object storage.

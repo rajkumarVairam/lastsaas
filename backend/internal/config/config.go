@@ -236,7 +236,7 @@ func expandEnvVars(s string) string {
 }
 
 func GetEnv() string {
-	env := os.Getenv("LASTSAAS_ENV")
+	env := os.Getenv("APP_ENV")
 	if env == "" {
 		return "dev"
 	}

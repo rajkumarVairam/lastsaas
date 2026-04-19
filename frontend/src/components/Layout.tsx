@@ -108,11 +108,11 @@ export default function Layout() {
     : defaultNavItems;
 
   // Resolve logo display
-  const appName = branding.appName || 'LastSaaS';
+  const appName = branding.appName || 'SaaSQuickStart';
   const logoMode = branding.logoMode || 'text';
   const logoUrl = branding.logoUrl;
 
-  const isImpersonating = localStorage.getItem('lastsaas_impersonating') === 'true';
+  const isImpersonating = localStorage.getItem('saasquickstart_impersonating') === 'true';
 
   return (
     <div className="min-h-screen bg-dark-950">
@@ -154,7 +154,7 @@ export default function Layout() {
                   ))}
                   {memberships.some(m => m.isRoot) && (
                     <Link
-                      to="/last"
+                      to="/admin"
                       className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
                         location.pathname.startsWith('/last')
                           ? 'bg-accent-purple/20 text-accent-purple'

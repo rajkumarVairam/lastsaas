@@ -1,16 +1,16 @@
 version: 2
 
-project_name: lastsaas
+project_name: saasquickstart
 
 before:
   hooks:
     - cd backend && go mod tidy
 
 builds:
-  - id: lastsaas
+  - id: saasquickstart
     dir: backend
-    main: ./cmd/lastsaas
-    binary: lastsaas
+    main: ./cmd/saasquickstart
+    binary: saasquickstart
     env:
       - CGO_ENABLED=0
     goos:
@@ -23,12 +23,12 @@ builds:
       - -s -w
 
 archives:
-  - id: lastsaas
+  - id: saasquickstart
     formats:
       - tar.gz
     ids:
-      - lastsaas
-    name_template: "lastsaas_{{ .Os }}_{{ .Arch }}"
+      - saasquickstart
+    name_template: "saasquickstart_{{ .Os }}_{{ .Arch }}"
 
 checksum:
   name_template: "checksums.txt"
@@ -44,6 +44,6 @@ changelog:
 release:
   github:
     owner: jonradoff
-    name: lastsaas
+    name: saasquickstart
   draft: false
   prerelease: auto

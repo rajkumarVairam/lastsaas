@@ -11,14 +11,14 @@ import (
 	"os"
 	"time"
 
-	"lastsaas/internal/version"
+	"saasquickstart/internal/version"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
 
 // ---------------------------------------------------------------------------
-// HTTP client for proxying read-only requests to the LastSaaS API
+// HTTP client for proxying read-only requests to the SaaSQuickStart API
 // ---------------------------------------------------------------------------
 
 type mcpClient struct {
@@ -91,22 +91,22 @@ func buildQuery(params map[string]string) string {
 // ---------------------------------------------------------------------------
 
 func cmdMCP() {
-	baseURL := os.Getenv("LASTSAAS_URL")
-	apiKey := os.Getenv("LASTSAAS_API_KEY")
+	baseURL := os.Getenv("SQS_URL")
+	apiKey := os.Getenv("SQS_API_KEY")
 
 	if baseURL == "" {
-		fmt.Fprintln(os.Stderr, "LASTSAAS_URL environment variable is required (e.g. http://localhost:3000)")
+		fmt.Fprintln(os.Stderr, "SQS_URL environment variable is required (e.g. http://localhost:3000)")
 		os.Exit(1)
 	}
 	if apiKey == "" {
-		fmt.Fprintln(os.Stderr, "LASTSAAS_API_KEY environment variable is required (e.g. lsk_xxxxx)")
+		fmt.Fprintln(os.Stderr, "SQS_API_KEY environment variable is required (e.g. lsk_xxxxx)")
 		os.Exit(1)
 	}
 
 	client := newMCPClient(baseURL, apiKey)
 
 	s := server.NewMCPServer(
-		"lastsaas-admin",
+		"saasquickstart-admin",
 		version.Current,
 		server.WithToolCapabilities(false),
 		server.WithResourceCapabilities(false, false),
@@ -848,12 +848,12 @@ func registerPMTools(s *server.MCPServer, client *mcpClient) {
 // ---------------------------------------------------------------------------
 
 func registerResources(s *server.MCPServer, client *mcpClient) {
-	// lastsaas://dashboard
+	// saasquickstart://dashboard
 	s.AddResource(
 		mcp.NewResource(
-			"lastsaas://dashboard",
+			"saasquickstart://dashboard",
 			"Dashboard Summary",
-			mcp.WithResourceDescription("LastSaaS admin dashboard: user count, tenant count, and system health status with issues"),
+			mcp.WithResourceDescription("SaaSQuickStart admin dashboard: user count, tenant count, and system health status with issues"),
 			mcp.WithMIMEType("application/json"),
 		),
 		func(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
@@ -863,7 +863,7 @@ func registerResources(s *server.MCPServer, client *mcpClient) {
 			}
 			return []mcp.ResourceContents{
 				mcp.TextResourceContents{
-					URI:      "lastsaas://dashboard",
+					URI:      "saasquickstart://dashboard",
 					MIMEType: "application/json",
 					Text:     prettyJSON(data),
 				},
@@ -871,10 +871,10 @@ func registerResources(s *server.MCPServer, client *mcpClient) {
 		},
 	)
 
-	// lastsaas://health
+	// saasquickstart://health
 	s.AddResource(
 		mcp.NewResource(
-			"lastsaas://health",
+			"saasquickstart://health",
 			"System Health",
 			mcp.WithResourceDescription("Current system health: CPU, memory, disk, HTTP stats, MongoDB connections, and node status"),
 			mcp.WithMIMEType("application/json"),
@@ -886,7 +886,7 @@ func registerResources(s *server.MCPServer, client *mcpClient) {
 			}
 			return []mcp.ResourceContents{
 				mcp.TextResourceContents{
-					URI:      "lastsaas://health",
+					URI:      "saasquickstart://health",
 					MIMEType: "application/json",
 					Text:     prettyJSON(data),
 				},

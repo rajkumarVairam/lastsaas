@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"time"
 
-	"lastsaas/internal/cache"
-	"lastsaas/internal/db"
-	"lastsaas/internal/models"
+	"saasquickstart/internal/cache"
+	"saasquickstart/internal/db"
+	"saasquickstart/internal/models"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"

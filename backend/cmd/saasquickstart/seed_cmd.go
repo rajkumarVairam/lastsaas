@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"lastsaas/internal/auth"
-	"lastsaas/internal/seed"
+	"saasquickstart/internal/auth"
+	"saasquickstart/internal/seed"
 )
 
 func cmdSeed() {
@@ -103,5 +103,5 @@ func cmdSeed() {
 		fmt.Printf("  %-22s  %s\n", k, emails[k])
 	}
 	fmt.Println()
-	fmt.Println("Run `lastsaas seed --reset` to wipe and re-seed.")
+	fmt.Println("Run `saasquickstart seed --reset` to wipe and re-seed.")
 }

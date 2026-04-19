@@ -25,7 +25,7 @@ Variables marked **generate** can use Render's "Generate" button for random valu
 | Variable | Value | Notes |
 |---|---|---|
 | `MONGODB_URI` | `mongodb+srv://...` | From Atlas → Connect → Drivers |
-| `DATABASE_NAME` | `lastsaas` | Or your chosen DB name |
+| `DATABASE_NAME` | `saasquickstart` | Or your chosen DB name |
 | `FRONTEND_URL` | `https://yourapp.onrender.com` | Update after first deploy |
 | `JWT_ACCESS_SECRET` | *(generate)* | Min 32 chars |
 | `JWT_REFRESH_SECRET` | *(generate)* | Min 32 chars, different from access |

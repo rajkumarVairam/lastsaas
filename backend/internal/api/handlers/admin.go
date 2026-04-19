@@ -11,15 +11,15 @@ import (
 	"strings"
 	"time"
 
-	"lastsaas/internal/auth"
-	"lastsaas/internal/db"
-	"lastsaas/internal/email"
-	"lastsaas/internal/events"
-	"lastsaas/internal/health"
-	"lastsaas/internal/middleware"
-	"lastsaas/internal/models"
-	"lastsaas/internal/syslog"
-	"lastsaas/internal/version"
+	"saasquickstart/internal/auth"
+	"saasquickstart/internal/db"
+	"saasquickstart/internal/email"
+	"saasquickstart/internal/events"
+	"saasquickstart/internal/health"
+	"saasquickstart/internal/middleware"
+	"saasquickstart/internal/models"
+	"saasquickstart/internal/syslog"
+	"saasquickstart/internal/version"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -758,7 +758,7 @@ func (h *AdminHandler) UpdateUserStatus(w http.ResponseWriter, r *http.Request) 
 func (h *AdminHandler) GetAbout(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, http.StatusOK, map[string]interface{}{
 		"version":   version.Current,
-		"copyright": "\u00a92026 Metavert LLC, licensed under the MIT License",
+		"copyright": "\u00a92026 SaaSQuickStart (saasquickstart.dev), licensed under the MIT License",
 	})
 }
 
@@ -1070,7 +1070,7 @@ func (h *AdminHandler) UpdateUserRole(w http.ResponseWriter, r *http.Request) {
 
 	// Block root tenant ownership transfer via API
 	if tenant.IsRoot && req.Role == models.RoleOwner {
-		respondWithError(w, http.StatusForbidden, "Root tenant ownership can only be transferred via the CLI command: lastsaas transfer-root-owner")
+		respondWithError(w, http.StatusForbidden, "Root tenant ownership can only be transferred via the CLI command: saasquickstart transfer-root-owner")
 		return
 	}
 

@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"lastsaas/internal/models"
+	"saasquickstart/internal/models"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -16,7 +16,7 @@ import (
 
 func cmdFinancial() {
 	if len(os.Args) < 3 {
-		fmt.Fprintln(os.Stderr, `Usage: lastsaas financial <subcommand>
+		fmt.Fprintln(os.Stderr, `Usage: saasquickstart financial <subcommand>
 
 Subcommands:
   summary                     Revenue summary and key metrics

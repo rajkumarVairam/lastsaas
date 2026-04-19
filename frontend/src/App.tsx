@@ -165,7 +165,7 @@ export default function App() {
                       </Route>
 
                       {/* Admin routes (root tenant only, enforced by AdminLayout) */}
-                      <Route path="/last" element={<AdminLayout />}>
+                      <Route path="/admin" element={<AdminLayout />}>
                         <Route index element={<Suspense fallback={<LazyFallback />}><AdminDashboardPage /></Suspense>} />
                         <Route path="messages" element={<Suspense fallback={<LazyFallback />}><AdminMessagesPage /></Suspense>} />
                         <Route path="users" element={<Suspense fallback={<LazyFallback />}><AdminUsersPage /></Suspense>} />

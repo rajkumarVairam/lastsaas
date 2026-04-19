@@ -127,9 +127,9 @@ export default function UsersPage() {
   const handleImpersonate = async (userId: string) => {
     try {
       const data = await adminApi.impersonateUser(userId);
-      localStorage.setItem('lastsaas_access_token', data.accessToken);
-      localStorage.removeItem('lastsaas_refresh_token');
-      localStorage.setItem('lastsaas_impersonating', 'true');
+      localStorage.setItem('saasquickstart_access_token', data.accessToken);
+      localStorage.removeItem('saasquickstart_refresh_token');
+      localStorage.setItem('saasquickstart_impersonating', 'true');
       setAuthToken(data.accessToken);
       await refreshUser();
       navigate('/dashboard');
@@ -220,7 +220,7 @@ export default function UsersPage() {
                   {users.map((user) => (
                     <tr
                       key={user.id}
-                      onClick={() => navigate(`/last/users/${user.id}`)}
+                      onClick={() => navigate(`/admin/users/${user.id}`)}
                       className="border-b border-dark-800/50 hover:bg-dark-800/30 transition-colors cursor-pointer"
                     >
                       <td className="px-6 py-3.5">

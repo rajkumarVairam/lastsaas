@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"lastsaas/internal/middleware"
-	"lastsaas/internal/sse"
+	"saasquickstart/internal/middleware"
+	"saasquickstart/internal/sse"
 )
 
 const (

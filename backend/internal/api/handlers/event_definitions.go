@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"lastsaas/internal/db"
-	"lastsaas/internal/models"
-	"lastsaas/internal/syslog"
+	"saasquickstart/internal/db"
+	"saasquickstart/internal/models"
+	"saasquickstart/internal/syslog"
 
 	"github.com/gorilla/mux"
 	"go.mongodb.org/mongo-driver/bson"

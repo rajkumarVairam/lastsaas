@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"lastsaas/internal/auth"
-	"lastsaas/internal/models"
-	"lastsaas/internal/testutil"
+	"saasquickstart/internal/auth"
+	"saasquickstart/internal/models"
+	"saasquickstart/internal/testutil"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"

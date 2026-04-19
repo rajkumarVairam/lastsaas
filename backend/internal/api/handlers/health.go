@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"time"
 
-	"lastsaas/internal/email"
-	"lastsaas/internal/health"
-	"lastsaas/internal/models"
+	"saasquickstart/internal/email"
+	"saasquickstart/internal/health"
+	"saasquickstart/internal/models"
 )
 
 type HealthHandler struct {

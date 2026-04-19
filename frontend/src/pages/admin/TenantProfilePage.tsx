@@ -179,7 +179,7 @@ export default function TenantProfilePage() {
     return (
       <div className="text-center py-20">
         <p className="text-red-400 mb-4">{fetchError || 'Tenant not found'}</p>
-        <button onClick={() => navigate('/last/tenants')} className="text-primary-400 hover:underline">
+        <button onClick={() => navigate('/admin/tenants')} className="text-primary-400 hover:underline">
           Back to Tenants
         </button>
       </div>
@@ -204,7 +204,7 @@ export default function TenantProfilePage() {
     <div>
       {/* Header */}
       <div className="mb-8">
-        <Link to="/last/tenants" className="text-dark-400 hover:text-white text-sm flex items-center gap-1 mb-4">
+        <Link to="/admin/tenants" className="text-dark-400 hover:text-white text-sm flex items-center gap-1 mb-4">
           <ArrowLeft className="w-4 h-4" /> Back to Tenants
         </Link>
         <div className="flex items-center gap-3">
@@ -531,7 +531,7 @@ export default function TenantProfilePage() {
                 {members.map((m) => (
                   <tr
                     key={m.userId}
-                    onClick={() => navigate(`/last/users/${m.userId}`)}
+                    onClick={() => navigate(`/admin/users/${m.userId}`)}
                     className="border-b border-dark-800/50 hover:bg-dark-800/30 cursor-pointer transition-colors"
                   >
                     <td className="py-3 text-white">{m.displayName}</td>

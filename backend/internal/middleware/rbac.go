@@ -3,7 +3,7 @@ package middleware
 import (
 	"net/http"
 
-	"lastsaas/internal/models"
+	"saasquickstart/internal/models"
 )
 
 func RequireRole(minRole models.MemberRole) func(http.Handler) http.Handler {

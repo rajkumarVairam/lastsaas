@@ -11,13 +11,13 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"lastsaas/internal/auth"
-	"lastsaas/internal/config"
-	"lastsaas/internal/configstore"
-	"lastsaas/internal/db"
-	"lastsaas/internal/models"
-	"lastsaas/internal/validation"
-	"lastsaas/internal/version"
+	"saasquickstart/internal/auth"
+	"saasquickstart/internal/config"
+	"saasquickstart/internal/configstore"
+	"saasquickstart/internal/db"
+	"saasquickstart/internal/models"
+	"saasquickstart/internal/validation"
+	"saasquickstart/internal/version"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -85,10 +85,10 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Println(`lastsaas - LastSaaS system administration tool
+	fmt.Println(`saasquickstart - SaaSQuickStart system administration tool
 
 Usage:
-  lastsaas <command> [flags] [--json]
+  saasquickstart <command> [flags] [--json]
 
 Commands:
   setup                Initialize the system (create root tenant + owner account)
@@ -119,34 +119,34 @@ Global flags:
   --json               Output in JSON format (works with most commands)
 
 Examples:
-  lastsaas setup
-  lastsaas start --backend
-  lastsaas stop
+  saasquickstart setup
+  saasquickstart start --backend
+  saasquickstart stop
 
-  lastsaas logs --severity critical,high --tail 100
-  lastsaas logs --follow --category security
-  lastsaas logs --from 24h
-  lastsaas users list --json
-  lastsaas users get --email admin@example.com
-  lastsaas users suspend --email bad@example.com
-  lastsaas tenants list
-  lastsaas tenants get root
+  saasquickstart logs --severity critical,high --tail 100
+  saasquickstart logs --follow --category security
+  saasquickstart logs --from 24h
+  saasquickstart users list --json
+  saasquickstart users get --email admin@example.com
+  saasquickstart users suspend --email bad@example.com
+  saasquickstart tenants list
+  saasquickstart tenants get root
 
-  lastsaas health
-  lastsaas stats --json
-  lastsaas financial summary
-  lastsaas financial transactions --type subscription --limit 50
-  lastsaas financial metrics --days 30
-  lastsaas doctor
-  lastsaas db stats
+  saasquickstart health
+  saasquickstart stats --json
+  saasquickstart financial summary
+  saasquickstart financial transactions --type subscription --limit 50
+  saasquickstart financial metrics --days 30
+  saasquickstart doctor
+  saasquickstart db stats
 
-  lastsaas config list
-  lastsaas config get log.min_level
-  lastsaas config set log.min_level high
-  lastsaas config reset log.min_level
-  lastsaas change-password --email admin@example.com
+  saasquickstart config list
+  saasquickstart config get log.min_level
+  saasquickstart config set log.min_level high
+  saasquickstart config reset log.min_level
+  saasquickstart change-password --email admin@example.com
 
-  LASTSAAS_URL=http://localhost:3000 LASTSAAS_API_KEY=lsk_xxx lastsaas mcp`)
+  SQS_URL=http://localhost:3000 SQS_API_KEY=lsk_xxx saasquickstart mcp`)
 }
 
 // connectDB loads config and connects to MongoDB, printing helpful guidance on failure.
@@ -244,11 +244,11 @@ func cmdSetup() {
 		}
 
 		fmt.Println()
-		fmt.Println("If you need to change a user's password, use: lastsaas change-password --email <email>")
+		fmt.Println("If you need to change a user's password, use: saasquickstart change-password --email <email>")
 		os.Exit(0)
 	}
 
-	fmt.Println("=== LastSaaS Initial Setup ===")
+	fmt.Println("=== SaaSQuickStart Initial Setup ===")
 	fmt.Println()
 
 	reader := bufio.NewReader(os.Stdin)
@@ -371,8 +371,8 @@ func cmdSetup() {
 	welcomeMsg := models.Message{
 		ID:        primitive.NewObjectID(),
 		UserID:    user.ID,
-		Subject:   "Welcome to LastSaaS v" + version.Current,
-		Body:      "Your system has been initialized. Welcome to LastSaaS!",
+		Subject:   "Welcome to SaaSQuickStart v" + version.Current,
+		Body:      "Your system has been initialized. Welcome to SaaSQuickStart!",
 		IsSystem:  true,
 		Read:      false,
 		CreatedAt: now,
@@ -397,7 +397,7 @@ func cmdChangePassword() {
 	fs.Parse(os.Args[2:])
 
 	if *emailFlag == "" {
-		fmt.Fprintln(os.Stderr, "Usage: lastsaas change-password --email <email>")
+		fmt.Fprintln(os.Stderr, "Usage: saasquickstart change-password --email <email>")
 		os.Exit(1)
 	}
 
@@ -468,7 +468,7 @@ func cmdSendMessage() {
 	fs.Parse(os.Args[2:])
 
 	if *emailFlag == "" || *messageFlag == "" {
-		fmt.Fprintln(os.Stderr, "Usage: lastsaas send-message --email <email> --message \"Your message here\"")
+		fmt.Fprintln(os.Stderr, "Usage: saasquickstart send-message --email <email> --message \"Your message here\"")
 		fmt.Fprintln(os.Stderr, "  --subject \"Optional subject\" (default: \"System Message\")")
 		os.Exit(1)
 	}
@@ -531,7 +531,7 @@ func cmdSendMessage() {
 
 func cmdConfig() {
 	if len(os.Args) < 3 {
-		fmt.Fprintln(os.Stderr, `Usage: lastsaas config <subcommand>
+		fmt.Fprintln(os.Stderr, `Usage: saasquickstart config <subcommand>
 
 Subcommands:
   list              List all configuration variables
@@ -546,19 +546,19 @@ Subcommands:
 		cmdConfigList()
 	case "get":
 		if len(os.Args) < 4 {
-			fmt.Fprintln(os.Stderr, "Usage: lastsaas config get <name>")
+			fmt.Fprintln(os.Stderr, "Usage: saasquickstart config get <name>")
 			os.Exit(1)
 		}
 		cmdConfigGet(os.Args[3])
 	case "set":
 		if len(os.Args) < 5 {
-			fmt.Fprintln(os.Stderr, "Usage: lastsaas config set <name> <value>")
+			fmt.Fprintln(os.Stderr, "Usage: saasquickstart config set <name> <value>")
 			os.Exit(1)
 		}
 		cmdConfigSet(os.Args[3], strings.Join(os.Args[4:], " "))
 	case "reset":
 		if len(os.Args) < 4 {
-			fmt.Fprintln(os.Stderr, "Usage: lastsaas config reset <name>")
+			fmt.Fprintln(os.Stderr, "Usage: saasquickstart config reset <name>")
 			os.Exit(1)
 		}
 		cmdConfigReset(os.Args[3])
@@ -733,7 +733,7 @@ func cmdTransferRootOwner() {
 	fs.Parse(os.Args[2:])
 
 	if *emailFlag == "" {
-		fmt.Fprintln(os.Stderr, "Usage: lastsaas transfer-root-owner --email <new-owner-email>")
+		fmt.Fprintln(os.Stderr, "Usage: saasquickstart transfer-root-owner --email <new-owner-email>")
 		os.Exit(1)
 	}
 
@@ -854,7 +854,7 @@ func cmdTransferRootOwner() {
 // --- version command ---
 
 func cmdVersion() {
-	fmt.Printf("LastSaaS v%s (binary)\n", version.Current)
+	fmt.Printf("SaaSQuickStart v%s (binary)\n", version.Current)
 
 	database, cfg, cleanup := connectDB()
 	defer cleanup()
@@ -910,7 +910,7 @@ func cmdStatus() {
 	if err != nil || !sys.Initialized {
 		fmt.Println("Initialized: No")
 		fmt.Println()
-		fmt.Println("Run 'lastsaas setup' to initialize the system.")
+		fmt.Println("Run '''saasquickstart setup' to initialize the system.")
 		return
 	}
 	fmt.Printf("Initialized: Yes (v%s)\n", sys.Version)

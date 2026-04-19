@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"lastsaas/internal/models"
+	"saasquickstart/internal/models"
 
 	"github.com/stripe/stripe-go/v82"
 	"github.com/stripe/stripe-go/v82/balance"

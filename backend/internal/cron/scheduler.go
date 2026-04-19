@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"time"
 
-	"lastsaas/internal/db"
-	"lastsaas/internal/jobs"
-	"lastsaas/internal/models"
+	"saasquickstart/internal/db"
+	"saasquickstart/internal/jobs"
+	"saasquickstart/internal/models"
 
 	robfigcron "github.com/robfig/cron/v3"
 	"go.mongodb.org/mongo-driver/bson"

@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"lastsaas/internal/apicounter"
-	"lastsaas/internal/models"
+	"saasquickstart/internal/apicounter"
+	"saasquickstart/internal/models"
 )
 
 const (
@@ -36,7 +36,7 @@ type Client struct {
 	site       string // e.g. "us5.datadoghq.com"
 	env        string // e.g. "dev", "prod"
 	appName    string
-	hostname   string // canonical: e.g. "lastsaas.fly.dev"
+	hostname   string // canonical: e.g. "saasquickstart.fly.dev"
 	machineID  string // Fly machine ID for tagging
 	region     string // Fly region for tagging
 	metricPfx  string // normalized app name for metric prefix
@@ -139,7 +139,7 @@ func resolveHostname(configHostname string) string {
 	return h
 }
 
-// normalizeMetricPrefix converts "LastSaaS" -> "lastsaas", "Flipbook Metavert" -> "flipbook-metavert"
+// normalizeMetricPrefix converts "SaaSQuickStart" -> "saasquickstart", "My App" -> "my-app"
 func normalizeMetricPrefix(appName string) string {
 	s := strings.ToLower(appName)
 	s = strings.ReplaceAll(s, " ", "-")

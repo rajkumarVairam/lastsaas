@@ -48,7 +48,7 @@ func setupTestEnv(t *testing.T) {
 	configDir := findConfigDir(t)
 	os.Setenv("LASTSAAS_CONFIG_DIR", configDir)
 	os.Setenv("MONGODB_URI", "mongodb://localhost:27017")
-	os.Setenv("DATABASE_NAME", "lastsaas-test")
+	os.Setenv("DATABASE_NAME", "saasquickstart-test")
 	os.Setenv("JWT_ACCESS_SECRET", "test-access-secret-minimum16chars")
 	os.Setenv("JWT_REFRESH_SECRET", "test-refresh-secret-minimum16chars")
 }
@@ -62,8 +62,8 @@ func TestLoadTestConfig(t *testing.T) {
 	if cfg.Environment != "test" {
 		t.Errorf("expected environment 'test', got %q", cfg.Environment)
 	}
-	if cfg.Database.Name != "lastsaas-test" {
-		t.Errorf("expected database name 'lastsaas-test', got %q", cfg.Database.Name)
+	if cfg.Database.Name != "saasquickstart-test" {
+		t.Errorf("expected database name 'saasquickstart-test', got %q", cfg.Database.Name)
 	}
 	if cfg.Server.Port != 3099 {
 		t.Errorf("expected port 3099, got %d", cfg.Server.Port)
@@ -171,7 +171,7 @@ func TestEnvVarExpansionSetOverridesDefault(t *testing.T) {
 }
 
 func TestGetEnvDefault(t *testing.T) {
-	os.Unsetenv("LASTSAAS_ENV")
+	os.Unsetenv("APP_ENV")
 	env := GetEnv()
 	if env != "dev" {
 		t.Errorf("expected 'dev', got %q", env)
@@ -179,8 +179,8 @@ func TestGetEnvDefault(t *testing.T) {
 }
 
 func TestGetEnvCustom(t *testing.T) {
-	os.Setenv("LASTSAAS_ENV", "staging")
-	defer os.Unsetenv("LASTSAAS_ENV")
+	os.Setenv("APP_ENV", "staging")
+	defer os.Unsetenv("APP_ENV")
 
 	env := GetEnv()
 	if env != "staging" {

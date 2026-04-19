@@ -9,11 +9,11 @@ import (
 	"sync"
 	"time"
 
-	"lastsaas/internal/apicounter"
-	"lastsaas/internal/db"
-	"lastsaas/internal/middleware"
-	"lastsaas/internal/models"
-	"lastsaas/internal/version"
+	"saasquickstart/internal/apicounter"
+	"saasquickstart/internal/db"
+	"saasquickstart/internal/middleware"
+	"saasquickstart/internal/models"
+	"saasquickstart/internal/version"
 
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/disk"

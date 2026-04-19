@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"lastsaas/internal/models"
-	"lastsaas/internal/testutil"
+	"saasquickstart/internal/models"
+	"saasquickstart/internal/testutil"
 )
 
 // isolationEnv holds users and tenants for cross-tenant isolation tests.

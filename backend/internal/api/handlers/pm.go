@@ -5,9 +5,9 @@ import (
 	"strconv"
 	"time"
 
-	"lastsaas/internal/db"
-	"lastsaas/internal/syslog"
-	"lastsaas/internal/telemetry"
+	"saasquickstart/internal/db"
+	"saasquickstart/internal/syslog"
+	"saasquickstart/internal/telemetry"
 )
 
 type PMHandler struct {

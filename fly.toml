@@ -1,4 +1,4 @@
-app = 'lastsaas'
+app = 'saasquickstart'
 primary_region = 'iad'
 
 [build]

@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"testing"
 
-	"lastsaas/internal/events"
-	"lastsaas/internal/models"
+	"saasquickstart/internal/events"
+	"saasquickstart/internal/models"
 )
 
 func TestComputeSignature(t *testing.T) {

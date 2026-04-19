@@ -121,7 +121,7 @@ export default function UserProfilePage() {
         replacementOwners: Object.keys(replacementOwners).length > 0 ? replacementOwners : undefined,
         confirmTenantDeletions: confirmedTenantDeletions.length > 0 ? confirmedTenantDeletions : undefined,
       });
-      navigate('/last/users');
+      navigate('/admin/users');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Failed to delete user';
       setDeleteError(msg);
@@ -148,7 +148,7 @@ export default function UserProfilePage() {
     <div className="py-20 text-center">
       <p className="text-red-400 text-lg mb-2">Failed to load user profile</p>
       <p className="text-dark-400 text-sm font-mono">{fetchError}</p>
-      <button onClick={() => navigate('/last/users')} className="mt-4 px-4 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-dark-300 hover:text-white transition-colors">
+      <button onClick={() => navigate('/admin/users')} className="mt-4 px-4 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-dark-300 hover:text-white transition-colors">
         Back to Users
       </button>
     </div>
@@ -159,7 +159,7 @@ export default function UserProfilePage() {
     <div>
       {/* Header */}
       <div className="flex items-center gap-4 mb-8">
-        <button onClick={() => navigate('/last/users')} className="p-2 hover:bg-dark-800 rounded-lg transition-colors">
+        <button onClick={() => navigate('/admin/users')} className="p-2 hover:bg-dark-800 rounded-lg transition-colors">
           <ArrowLeft className="w-5 h-5 text-dark-400" />
         </button>
         <div>
@@ -287,7 +287,7 @@ export default function UserProfilePage() {
               {memberships.map((m) => (
                 <tr
                   key={m.tenantId}
-                  onClick={() => navigate(`/last/tenants/${m.tenantId}`)}
+                  onClick={() => navigate(`/admin/tenants/${m.tenantId}`)}
                   className="border-b border-dark-800/50 hover:bg-dark-800/30 cursor-pointer transition-colors"
                 >
                   <td className="px-4 py-3">
@@ -333,7 +333,7 @@ export default function UserProfilePage() {
       {/* View Logs + Danger Zone */}
       <div className="flex flex-col gap-6">
         <Link
-          to={`/last/logs?userId=${userId}`}
+          to={`/admin/logs?userId=${userId}`}
           className="inline-flex items-center gap-2 px-4 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-dark-300 hover:text-white hover:border-dark-600 transition-colors w-fit"
         >
           <FileText className="w-4 h-4" />

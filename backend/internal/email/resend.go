@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"time"
 
-	"lastsaas/internal/apicounter"
+	"saasquickstart/internal/apicounter"
 )
 
 type ResendService struct {

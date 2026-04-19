@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
-	"lastsaas/internal/db"
-	"lastsaas/internal/middleware"
-	"lastsaas/internal/models"
-	"lastsaas/internal/syslog"
-	"lastsaas/internal/validation"
-	"lastsaas/internal/webhooks"
+	"saasquickstart/internal/db"
+	"saasquickstart/internal/middleware"
+	"saasquickstart/internal/models"
+	"saasquickstart/internal/syslog"
+	"saasquickstart/internal/validation"
+	"saasquickstart/internal/webhooks"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"

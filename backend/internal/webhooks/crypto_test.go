@@ -4,8 +4,8 @@ import (
 	"encoding/hex"
 	"testing"
 
-	"lastsaas/internal/events"
-	"lastsaas/internal/models"
+	"saasquickstart/internal/events"
+	"saasquickstart/internal/models"
 )
 
 func TestEncryptDecryptRoundTrip(t *testing.T) {

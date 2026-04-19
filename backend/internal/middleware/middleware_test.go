@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"lastsaas/internal/models"
+	"saasquickstart/internal/models"
 )
 
 func TestSecurityHeaders(t *testing.T) {

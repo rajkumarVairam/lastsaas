@@ -90,7 +90,7 @@ export default function AdminDashboardPage() {
       {/* Unconfigured Integrations Warning */}
       {unconfiguredIntegrations.length > 0 && (
         <Link
-          to="/last/health#integrations"
+          to="/admin/health#integrations"
           className="flex items-center gap-3 mb-6 p-4 bg-yellow-500/5 border border-yellow-500/20 rounded-2xl hover:border-yellow-500/30 transition-colors"
         >
           <div className="w-10 h-10 rounded-xl bg-yellow-500/10 flex items-center justify-center flex-shrink-0">
@@ -109,7 +109,7 @@ export default function AdminDashboardPage() {
 
       {/* Top Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <Link to="/last/users">
+        <Link to="/admin/users">
           <Card className="hover:border-dark-700 transition-colors">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-xl bg-primary-500/20 flex items-center justify-center">
@@ -123,7 +123,7 @@ export default function AdminDashboardPage() {
           </Card>
         </Link>
 
-        <Link to="/last/tenants">
+        <Link to="/admin/tenants">
           <Card className="hover:border-dark-700 transition-colors">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-xl bg-accent-purple/20 flex items-center justify-center">
@@ -137,7 +137,7 @@ export default function AdminDashboardPage() {
           </Card>
         </Link>
 
-        <Link to="/last/health">
+        <Link to="/admin/health">
           <Card className={`hover:border-dark-700 transition-colors ${!healthy ? 'border-red-500/30' : ''}`}>
             <div className="flex items-center gap-4">
               <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
@@ -171,7 +171,7 @@ export default function AdminDashboardPage() {
 
       {/* Business Metrics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <Link to="/last/financial">
+        <Link to="/admin/financial">
           <Card className="hover:border-dark-700 transition-colors">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-xl bg-accent-emerald/20 flex items-center justify-center">

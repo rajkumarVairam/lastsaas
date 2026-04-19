@@ -1,6 +1,6 @@
 // Package seed populates a database with realistic scenarios covering every
 // billing state, team role, job status, and usage pattern. Seeded documents
-// share seedTag="lastsaas_seed" so Reset() can wipe them without touching
+// share seedTag="saasquickstart_seed" so Reset() can wipe them without touching
 // real data. Designed for dev databases and E2E test suites.
 package seed
 
@@ -14,16 +14,16 @@ import (
 	"os"
 	"time"
 
-	"lastsaas/internal/auth"
-	"lastsaas/internal/db"
-	"lastsaas/internal/models"
+	"saasquickstart/internal/auth"
+	"saasquickstart/internal/db"
+	"saasquickstart/internal/models"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 const (
-	SeedTag      = "lastsaas_seed"
+	SeedTag      = "saasquickstart_seed"
 	SeedPassword = "Seed123!"
 )
 
@@ -128,9 +128,10 @@ func Run(ctx context.Context, database *db.MongoDB, outputPath string, jwtSvc *a
 	return writeManifest(outputPath, r.manifest)
 }
 
-// Reset removes every document tagged with SeedTag.
+// Reset removes every document that has a seedTag field (any value).
+// Using $exists covers renamed tags from previous versions.
 func Reset(ctx context.Context, database *db.MongoDB) error {
-	filter := bson.M{"seedTag": SeedTag}
+	filter := bson.M{"seedTag": bson.M{"$exists": true}}
 	database.Users().DeleteMany(ctx, filter)
 	database.Tenants().DeleteMany(ctx, filter)
 	database.TenantMemberships().DeleteMany(ctx, filter)
@@ -220,7 +221,7 @@ func (r *runner) seedPlans(ctx context.Context) error {
 func (r *runner) seedRootAdmin(ctx context.Context) error {
 	var rootTenant models.Tenant
 	if err := r.db.Tenants().FindOne(ctx, bson.M{"isRoot": true}).Decode(&rootTenant); err != nil {
-		return fmt.Errorf("root tenant not found — run `lastsaas setup` first: %w", err)
+		return fmt.Errorf("root tenant not found — run `saasquickstart setup` first: %w", err)
 	}
 
 	user, err := r.createUser(ctx, "Seed Root Admin", "root-admin@seed.local")

@@ -6,8 +6,8 @@ import (
 	"os"
 	"time"
 
-	"lastsaas/internal/db"
-	"lastsaas/internal/models"
+	"saasquickstart/internal/db"
+	"saasquickstart/internal/models"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -17,7 +17,7 @@ func appNameDefault() string {
 	if name := os.Getenv("APP_NAME"); name != "" {
 		return name
 	}
-	return "LastSaaS"
+	return "SaaSQuickStart"
 }
 
 // SystemDefaults defines the system-level configuration variables that must always exist.

@@ -11,7 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 cd backend && go run ./cmd/server
 
 # Run the CLI / MCP server
-cd backend && go run ./cmd/lastsaas <command>
+cd backend && go run ./cmd/saasquickstart <command>
 
 # Build
 cd backend && go build ./...
@@ -20,16 +20,16 @@ cd backend && go build ./...
 cd frontend && npx tsc --noEmit
 
 # All backend tests (unit + integration)
-cd backend && LASTSAAS_ENV=test go test -count=1 -v ./...
+cd backend && APP_ENV=test go test -count=1 -v ./...
 
 # Unit tests only (no DB required)
-cd backend && LASTSAAS_ENV=test go test -short -count=1 ./...
+cd backend && APP_ENV=test go test -short -count=1 ./...
 
 # Single test
-cd backend && LASTSAAS_ENV=test go test -count=1 -v -run TestFunctionName ./internal/package/...
+cd backend && APP_ENV=test go test -count=1 -v -run TestFunctionName ./internal/package/...
 
 # Integration tests only
-cd backend && LASTSAAS_ENV=test go test -count=1 -v -run Integration ./...
+cd backend && APP_ENV=test go test -count=1 -v -run Integration ./...
 
 # Validation tests (after model changes)
 cd backend && go test ./internal/validation/...
@@ -65,7 +65,7 @@ cd frontend && npm run dev:stripe   # Stripe webhook tunnel (requires Stripe CLI
 
 ```bash
 # Backend starts on :4290, frontend on :4280
-cd backend && go run ./cmd/lastsaas setup   # Creates root tenant + admin account
+cd backend && go run ./cmd/saasquickstart setup   # Creates root tenant + admin account
 ```
 
 ## Architecture
@@ -91,7 +91,7 @@ cd backend && go run ./cmd/lastsaas setup   # Creates root tenant + admin accoun
 ```
 backend/
   cmd/server/main.go        # Entry point: wires all services, registers all routes
-  cmd/lastsaas/main.go      # CLI + MCP server
+  cmd/saasquickstart/main.go      # CLI + MCP server
   internal/
     api/handlers/           # HTTP handlers — one file per domain
     middleware/             # Auth, tenant resolution, RBAC, rate limiting, billing enforcement, metrics
@@ -165,7 +165,7 @@ frontend/src/
 
 Config files: `backend/config/dev.yaml` and `prod.yaml` (gitignored; copy from `dev.example.yaml`).
 
-`LASTSAAS_ENV=dev|prod|test` selects which config to load. Secrets are referenced as `${ENV_VAR}` in YAML.
+`APP_ENV=dev|prod|test` selects which config to load. Secrets are referenced as `${ENV_VAR}` in YAML.
 
 The `.env` file at the project root is auto-loaded by the backend. Key required vars: `DATABASE_NAME`, `MONGODB_URI`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `FRONTEND_URL`.
 
@@ -237,7 +237,7 @@ bash scripts/check_tenant_isolation.sh
 
 ## Validation
 
-LastSaaS uses hybrid validation: Go-side (`validate` struct tags via go-playground/validator) and MongoDB JSON Schema (`internal/db/schema.go`).
+SaaSQuickStart uses hybrid validation: Go-side (`validate` struct tags via go-playground/validator) and MongoDB JSON Schema (`internal/db/schema.go`).
 
 **When modifying model structs in `internal/models/`:**
 1. Update `validate` struct tags on the model
@@ -266,7 +266,7 @@ cd frontend && npx tsc --noEmit
 
 All test accounts are created by the seed command:
 ```bash
-cd backend && go run ./cmd/lastsaas seed --reset --output ../seed-manifest.json
+cd backend && go run ./cmd/saasquickstart seed --reset --output ../seed-manifest.json
 ```
 
 This creates 16 seeded accounts (password: `Seed123!`) covering every billing state, RBAC role, and AI credit state. It also mints 24h JWTs into `seed-manifest.json` so Playwright tests inject tokens directly without hitting the login rate limiter.
@@ -331,9 +331,9 @@ Provider is configured via `objectstore.provider` in YAML (`r2`, `s3`, or `db`).
 
 ## Dependent Project Deployment (CRITICAL)
 
-Any project built on the LastSaaS boilerplate — whether using it as a Git submodule, fork, or copy — **MUST** deploy using the SaaS Dockerfile (`Dockerfile.saas`) and the corresponding Fly config (`fly.saas.toml`). Never use bare `fly deploy` on a project that depends on LastSaaS.
+Any project built on the SaaSQuickStart boilerplate — whether using it as a Git submodule, fork, or copy — **MUST** deploy using the SaaS Dockerfile (`Dockerfile.saas`) and the corresponding Fly config (`fly.saas.toml`). Never use bare `fly deploy` on a project that depends on SaaSQuickStart.
 
-**Why this matters:** The SaaS Dockerfile runs both the product backend AND the LastSaaS backend behind Caddy (via supervisord). The LastSaaS backend serves all auth endpoints (`/api/auth/*`), bootstrap status (`/api/bootstrap/status`), OAuth providers (Google, etc.), billing, and admin APIs. Without it, login breaks silently — the product backend has no auth routes, so API calls return HTML from the SPA catch-all, causing mysterious redirects to `/setup` or broken login forms with missing OAuth buttons.
+**Why this matters:** The SaaS Dockerfile runs both the product backend AND the SaaSQuickStart backend behind Caddy (via supervisord). The SaaSQuickStart backend serves all auth endpoints (`/api/auth/*`), bootstrap status (`/api/bootstrap/status`), OAuth providers (Google, etc.), billing, and admin APIs. Without it, login breaks silently — the product backend has no auth routes, so API calls return HTML from the SPA catch-all, causing mysterious redirects to `/setup` or broken login forms with missing OAuth buttons.
 
 **Correct deploy command:**
 ```bash

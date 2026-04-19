@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"lastsaas/internal/models"
-	"lastsaas/internal/testutil"
+	"saasquickstart/internal/models"
+	"saasquickstart/internal/testutil"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )

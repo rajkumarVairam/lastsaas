@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"time"
 
-	"lastsaas/internal/db"
-	"lastsaas/internal/models"
-	"lastsaas/internal/syslog"
-	"lastsaas/internal/validation"
+	"saasquickstart/internal/db"
+	"saasquickstart/internal/models"
+	"saasquickstart/internal/syslog"
+	"saasquickstart/internal/validation"
 
 	"github.com/gorilla/mux"
 	"go.mongodb.org/mongo-driver/bson"

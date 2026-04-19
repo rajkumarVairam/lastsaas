@@ -6,10 +6,10 @@ import (
 	"strconv"
 	"time"
 
-	"lastsaas/internal/db"
-	"lastsaas/internal/jobs"
-	"lastsaas/internal/middleware"
-	"lastsaas/internal/models"
+	"saasquickstart/internal/db"
+	"saasquickstart/internal/jobs"
+	"saasquickstart/internal/middleware"
+	"saasquickstart/internal/models"
 
 	"github.com/gorilla/mux"
 	"go.mongodb.org/mongo-driver/bson"
