@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
+	"lastsaas/internal/cache"
 	"lastsaas/internal/db"
 	"lastsaas/internal/models"
 
@@ -15,19 +17,43 @@ import (
 const (
 	TenantContextKey     contextKey = "tenant"
 	MembershipContextKey contextKey = "membership"
+
+	tenantCacheTTL     = 30 * time.Second
+	membershipCacheTTL = 30 * time.Second
+	planCacheTTL       = 5 * time.Minute
 )
 
+// TenantMiddleware resolves the tenant and membership for each request.
+// Results are cached in-memory to avoid repeated DB lookups on the hot path:
+//   - Tenant:     30s TTL  (billing/plan changes propagate within 30s)
+//   - Membership: 30s TTL  (role changes propagate within 30s)
+//   - Plan:       5min TTL (entitlement changes propagate within 5min)
 type TenantMiddleware struct {
-	db *db.MongoDB
+	db              *db.MongoDB
+	tenantCache     *cache.TTL[primitive.ObjectID, models.Tenant]
+	membershipCache *cache.TTL[string, models.TenantMembership]
+	planCache       *cache.TTL[primitive.ObjectID, models.Plan]
 }
 
 func NewTenantMiddleware(database *db.MongoDB) *TenantMiddleware {
-	return &TenantMiddleware{db: database}
+	return &TenantMiddleware{
+		db:              database,
+		tenantCache:     cache.New[primitive.ObjectID, models.Tenant](tenantCacheTTL),
+		membershipCache: cache.New[string, models.TenantMembership](membershipCacheTTL),
+		planCache:       cache.New[primitive.ObjectID, models.Plan](planCacheTTL),
+	}
+}
+
+// Stop terminates the background cache sweep goroutines.
+func (m *TenantMiddleware) Stop() {
+	m.tenantCache.Stop()
+	m.membershipCache.Stop()
+	m.planCache.Stop()
 }
 
 func (m *TenantMiddleware) RequireTenant(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// If API key auth already populated tenant context, pass through
+		// API key auth already resolved tenant + membership — pass through.
 		if _, ok := GetTenantFromContext(r.Context()); ok {
 			if _, ok := GetMembershipFromContext(r.Context()); ok {
 				next.ServeHTTP(w, r)
@@ -47,11 +73,16 @@ func (m *TenantMiddleware) RequireTenant(next http.Handler) http.Handler {
 			return
 		}
 
-		var tenant models.Tenant
-		err = m.db.Tenants().FindOne(r.Context(), bson.M{"_id": tenantID, "isActive": true}).Decode(&tenant)
-		if err != nil {
-			http.Error(w, `{"error":"Tenant not found"}`, http.StatusNotFound)
-			return
+		// Tenant lookup — cache miss falls through to MongoDB.
+		tenant, ok := m.tenantCache.Get(tenantID)
+		if !ok {
+			if err := m.db.Tenants().FindOne(r.Context(),
+				bson.M{"_id": tenantID, "isActive": true},
+			).Decode(&tenant); err != nil {
+				http.Error(w, `{"error":"Tenant not found"}`, http.StatusNotFound)
+				return
+			}
+			m.tenantCache.Set(tenantID, tenant)
 		}
 
 		user, ok := GetUserFromContext(r.Context())
@@ -60,14 +91,18 @@ func (m *TenantMiddleware) RequireTenant(next http.Handler) http.Handler {
 			return
 		}
 
-		var membership models.TenantMembership
-		err = m.db.TenantMemberships().FindOne(r.Context(), bson.M{
-			"userId":   user.ID,
-			"tenantId": tenantID,
-		}).Decode(&membership)
-		if err != nil {
-			http.Error(w, `{"error":"Not a member of this tenant"}`, http.StatusForbidden)
-			return
+		// Membership lookup — keyed by "userID:tenantID".
+		membershipKey := user.ID.Hex() + ":" + tenantID.Hex()
+		membership, ok := m.membershipCache.Get(membershipKey)
+		if !ok {
+			if err := m.db.TenantMemberships().FindOne(r.Context(), bson.M{
+				"userId":   user.ID,
+				"tenantId": tenantID,
+			}).Decode(&membership); err != nil {
+				http.Error(w, `{"error":"Not a member of this tenant"}`, http.StatusForbidden)
+				return
+			}
+			m.membershipCache.Set(membershipKey, membership)
 		}
 
 		ctx := context.WithValue(r.Context(), TenantContextKey, &tenant)
@@ -86,9 +121,8 @@ func GetMembershipFromContext(ctx context.Context) (*models.TenantMembership, bo
 	return membership, ok
 }
 
-// RequireActiveBilling returns middleware that blocks requests when the tenant's
-// billing status is not active (and not waived/root). This prevents users from
-// accessing paid features after subscription expiration or cancellation.
+// RequireActiveBilling blocks requests when the tenant's subscription is not
+// active. Root tenants and billing-waived tenants are always allowed through.
 func RequireActiveBilling() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -98,13 +132,11 @@ func RequireActiveBilling() func(http.Handler) http.Handler {
 				return
 			}
 
-			// Root tenant and billing-waived tenants are exempt
 			if tenant.IsRoot || tenant.BillingWaived {
 				next.ServeHTTP(w, r)
 				return
 			}
 
-			// Allow if billing status is active or none (free/unsubscribed tenants)
 			if tenant.BillingStatus == models.BillingStatusActive || tenant.BillingStatus == models.BillingStatusNone {
 				next.ServeHTTP(w, r)
 				return
@@ -115,9 +147,9 @@ func RequireActiveBilling() func(http.Handler) http.Handler {
 	}
 }
 
-// RequireEntitlement returns middleware that checks whether the tenant's plan
-// grants a specific boolean entitlement. Requires a DB handle to look up the plan.
-func RequireEntitlement(database *db.MongoDB, feature string) func(http.Handler) http.Handler {
+// RequireEntitlement checks whether the tenant's plan grants a specific boolean
+// entitlement. Plan data is served from the TenantMiddleware plan cache (5min TTL).
+func (m *TenantMiddleware) RequireEntitlement(feature string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			tenant, ok := GetTenantFromContext(r.Context())
@@ -126,7 +158,6 @@ func RequireEntitlement(database *db.MongoDB, feature string) func(http.Handler)
 				return
 			}
 
-			// Root tenant and billing-waived tenants get all features
 			if tenant.IsRoot || tenant.BillingWaived {
 				next.ServeHTTP(w, r)
 				return
@@ -137,10 +168,16 @@ func RequireEntitlement(database *db.MongoDB, feature string) func(http.Handler)
 				return
 			}
 
-			var plan models.Plan
-			if err := database.Plans().FindOne(r.Context(), bson.M{"_id": *tenant.PlanID}).Decode(&plan); err != nil {
-				http.Error(w, `{"error":"Plan not found"}`, http.StatusInternalServerError)
-				return
+			// Plan lookup — cache miss falls through to MongoDB.
+			plan, ok := m.planCache.Get(*tenant.PlanID)
+			if !ok {
+				if err := m.db.Plans().FindOne(r.Context(),
+					bson.M{"_id": *tenant.PlanID},
+				).Decode(&plan); err != nil {
+					http.Error(w, `{"error":"Plan not found"}`, http.StatusInternalServerError)
+					return
+				}
+				m.planCache.Set(*tenant.PlanID, plan)
 			}
 
 			ent, exists := plan.Entitlements[feature]

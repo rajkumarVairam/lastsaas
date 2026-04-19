@@ -260,6 +260,7 @@ func main() {
 	tenantMiddleware := middleware.NewTenantMiddleware(database)
 	rateLimiter := middleware.NewDistributedRateLimiter(database.Database)
 	defer rateLimiter.Stop()
+	defer tenantMiddleware.Stop()
 	metricsCollector := middleware.NewMetricsCollector()
 
 	// Initialize object store (R2, S3, or DB fallback for local dev).

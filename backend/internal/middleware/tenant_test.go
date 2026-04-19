@@ -159,7 +159,7 @@ func TestRequireEntitlementRootExempt(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	handler := RequireEntitlement(nil, "custom_branding")(inner)
+	handler := NewTenantMiddleware(nil).RequireEntitlement("custom_branding")(inner)
 
 	tenant := &models.Tenant{IsRoot: true}
 	req := httptest.NewRequest("GET", "/", nil)
@@ -179,7 +179,7 @@ func TestRequireEntitlementBillingWaivedExempt(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	handler := RequireEntitlement(nil, "custom_branding")(inner)
+	handler := NewTenantMiddleware(nil).RequireEntitlement("custom_branding")(inner)
 
 	tenant := &models.Tenant{BillingWaived: true}
 	req := httptest.NewRequest("GET", "/", nil)
@@ -199,7 +199,7 @@ func TestRequireEntitlementNoPlan(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	handler := RequireEntitlement(nil, "custom_branding")(inner)
+	handler := NewTenantMiddleware(nil).RequireEntitlement("custom_branding")(inner)
 
 	tenant := &models.Tenant{
 		ID:    primitive.NewObjectID(),
@@ -222,7 +222,7 @@ func TestRequireEntitlementNoTenantContext(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	handler := RequireEntitlement(nil, "feature")(inner)
+	handler := NewTenantMiddleware(nil).RequireEntitlement("feature")(inner)
 
 	req := httptest.NewRequest("GET", "/", nil)
 	rr := httptest.NewRecorder()
