@@ -42,7 +42,8 @@ cd frontend && npm run dev          # Dev server on :4280
 cd frontend && npm run build        # Production build
 cd frontend && npm run lint         # ESLint
 cd frontend && npm test             # Vitest unit tests
-cd frontend && npx playwright test  # E2E tests
+cd frontend && npx playwright test  # E2E tests (seeds DB + runs 50 tests)
+cd frontend && SKIP_SEED=1 npx playwright test  # Re-run without re-seeding
 ```
 
 ### Run everything at once
@@ -260,6 +261,35 @@ Always verify after changes:
 cd backend && go build ./...
 cd frontend && npx tsc --noEmit
 ```
+
+## Test Data Seed System
+
+All test accounts are created by the seed command:
+```bash
+cd backend && go run ./cmd/lastsaas seed --reset --output ../seed-manifest.json
+```
+
+This creates 16 seeded accounts (password: `Seed123!`) covering every billing state, RBAC role, and AI credit state. It also mints 24h JWTs into `seed-manifest.json` so Playwright tests inject tokens directly without hitting the login rate limiter.
+
+**Key files:**
+
+- `backend/internal/seed/seed.go` — seed scenarios (add new ones here)
+- `frontend/e2e/fixtures/seed.ts` — typed TypeScript getters for all accounts
+- `frontend/e2e/helpers/auth.ts` — `loginAs()` injects tokens from manifest
+- `frontend/e2e/global-setup.ts` — runs seed automatically before Playwright suite
+
+**Test documentation (keep these updated when shipping features):**
+
+- `AUTOMATED_TESTS.md` — what the 50 E2E tests cover, how to add new ones
+- `MANUAL_TESTS.md` — 14 manual checklists (Stripe, email, OAuth, MFA, etc.) + full seed credentials table
+
+**Rule: when you add a new feature or billing state:**
+
+1. Add a seed scenario in `backend/internal/seed/seed.go`
+2. Add a getter in `frontend/e2e/fixtures/seed.ts`
+3. Write an E2E test in the relevant `frontend/e2e/*.spec.ts`
+4. Add a row to `AUTOMATED_TESTS.md`
+5. Add manual steps to `MANUAL_TESTS.md` if human verification is needed (Stripe, email, OAuth)
 
 ## README Maintenance Rule
 
