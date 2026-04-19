@@ -45,29 +45,29 @@ Ideal for social media scheduling, async AI processing, PDF generation, data exp
 
 ---
 
-## Priority 4: Server-Sent Events (SSE) — PENDING
+## ✅ Priority 4: Server-Sent Events (SSE) — COMPLETED
 
-**GitHub:** [#20](https://github.com/rajkumarVairam/lastsaas/issues/20)
+**Shipped:** `3d26f41`
 
-**Problem:**
-The job queue (Priority 2) runs tasks durably, but the frontend has no push channel to know when a long-running job finishes. Polling `/api/tenant/jobs/{id}` every few seconds works but wastes DB reads and adds latency.
+Real-time push channel for the job queue and any custom product events, with no polling.
 
-**Solution:**
-- Implement an SSE dispatcher in the Go backend (`GET /api/tenant/events/stream`)
-- Push `job.completed`, `job.failed`, and custom product events over the stream
-- React hooks subscribe to the stream and update UI state without polling
-
-This is the natural complement to the job queue for real-time UX (progress bars, live status updates, notification toasts).
+- `internal/sse/Hub` — in-memory tenant-scoped pub/sub. Non-blocking publish skips slow clients rather than blocking the caller.
+- `internal/sse/Watcher` — MongoDB change stream on the jobs collection. Every node watches independently, so SSE clients receive events regardless of which node ran the job. Graceful fallback when change streams are unavailable (standalone local MongoDB).
+- `GET /api/tenant/events/stream` — authenticated SSE endpoint. Removes the per-connection write deadline via `http.NewResponseController` so the connection stays open indefinitely. 30-second heartbeat comment keeps connections alive through reverse proxies.
+- Events pushed: `job.completed`, `job.failed`, `job.dead`. Each carries `id`, `type`, `status`, and optionally `result` or `error`.
+- Frontend uses the browser `EventSource` API — reconnect is automatic on disconnect.
 
 ---
 
-## Priority 5: Recurring Scheduled Tasks (Cron) — PARTIAL
+## ✅ Priority 5: Recurring Scheduled Tasks (Cron) — COMPLETED
 
-**Status:** The job queue supports `runAt` for deferred single-shot execution. True recurring schedules (e.g. "run every midnight", "run every Monday at 9am") require a separate mechanism to re-enqueue jobs on a schedule.
+**Shipped:** `3d26f41`
 
-**What's needed:**
-- A `CronSchedule` model storing the recurrence rule (cron expression or interval), job type, and payload template
-- A leader-elected goroutine that evaluates due schedules and calls `queue.Enqueue()` — the existing `LeaderLocks` collection already provides the leader election primitive
-- Admin API to create/pause/delete schedules
+True recurring schedules built on top of the existing job queue — no Redis, no separate infrastructure.
 
-This avoids Redis entirely by reusing the existing job queue and MongoDB leader lock — consistent with the approach taken for Priority 2.
+- `CronSchedule` model: 5-field cron expression, timezone, jobType, payload template, maxAttempts, isActive, nextRunAt, lastRunAt, distributed lock fields.
+- `internal/cron/Scheduler` — 30-second tick with atomic `findOneAndUpdate` claim. Multiple nodes compete; only one fires per schedule tick. Stale lock reclaim on startup and every 5 minutes for crash recovery.
+- `NextRunTime` uses `github.com/robfig/cron/v3` to parse expressions and compute the next fire time in the schedule's timezone.
+- Paused schedules recompute `nextRunAt` on resume (no missed-fire backlog).
+- Full REST API: list, create, get, update (expression/timezone changes recompute nextRunAt), delete, pause, resume.
+- MongoDB indexes, JSON Schema validation, and validation tests included.
