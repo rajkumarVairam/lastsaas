@@ -17,6 +17,13 @@ const (
 	AuthMethodPasskey   AuthMethod = "passkey"
 )
 
+// EmailPreferences controls which categories of email a user receives.
+// Transactional emails (verification, password reset, magic links, invitations)
+// are always sent regardless of these settings.
+type EmailPreferences struct {
+	Marketing bool `json:"marketing" bson:"marketing"` // product updates, newsletters
+}
+
 type User struct {
 	ID                   primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 	Email                string             `json:"email" bson:"email" validate:"required,email,max=254"`
@@ -32,7 +39,9 @@ type User struct {
 	TOTPEnabled          bool               `json:"totpEnabled" bson:"totpEnabled"`
 	TOTPVerifiedAt       *time.Time         `json:"-" bson:"totpVerifiedAt,omitempty"`
 	RecoveryCodes        []string           `json:"-" bson:"recoveryCodes,omitempty"`
-	ThemePreference      string             `json:"themePreference" bson:"themePreference" validate:"omitempty,oneof=light dark system"`
+	ThemePreference       string            `json:"themePreference" bson:"themePreference" validate:"omitempty,oneof=light dark system"`
+	EmailPreferences      EmailPreferences  `json:"emailPreferences" bson:"emailPreferences"`
+	UnsubscribeToken      string            `json:"-" bson:"unsubscribeToken,omitempty"`
 	OnboardingCompletedAt *time.Time        `json:"onboardingCompletedAt,omitempty" bson:"onboardingCompletedAt,omitempty"`
 	CreatedAt            time.Time          `json:"createdAt" bson:"createdAt" validate:"required"`
 	UpdatedAt            time.Time          `json:"updatedAt" bson:"updatedAt" validate:"required"`

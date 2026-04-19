@@ -293,3 +293,25 @@ func (s *ResendService) SendInvitationEmail(to, inviterName, tenantName, token s
 
 	return s.SendEmail(to, subject, html)
 }
+
+// SendMarketingEmail sends an email only when the recipient has marketing emails
+// enabled. Pass optedIn=true when user.EmailPreferences.Marketing is true.
+// Returns nil without sending if optedIn is false (not an error).
+func (s *ResendService) SendMarketingEmail(to, subject, html string, optedIn bool) error {
+	if !optedIn {
+		slog.Debug("marketing email suppressed — user opted out", "to", to)
+		return nil
+	}
+	return s.SendEmail(to, subject, html)
+}
+
+// UnsubscribeFooter returns an HTML snippet with a one-click unsubscribe link
+// to append to marketing emails.
+func (s *ResendService) UnsubscribeFooter(unsubscribeToken string) string {
+	url := fmt.Sprintf("%s/unsubscribe?token=%s", s.frontendURL, unsubscribeToken)
+	return fmt.Sprintf(
+		`<p style="color:#94a3b8;font-size:12px;text-align:center;margin-top:32px;">
+		You're receiving this because you opted in to product updates.
+		<a href="%s" style="color:#94a3b8;">Unsubscribe</a>
+		</p>`, url)
+}

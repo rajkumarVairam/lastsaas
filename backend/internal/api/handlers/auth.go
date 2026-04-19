@@ -230,15 +230,17 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	now := time.Now()
 	user := models.User{
-		ID:            primitive.NewObjectID(),
-		Email:         req.Email,
-		DisplayName:   req.DisplayName,
-		PasswordHash:  passwordHash,
-		AuthMethods:   []models.AuthMethod{models.AuthMethodPassword},
-		EmailVerified: false,
-		IsActive:      true,
-		CreatedAt:     now,
-		UpdatedAt:     now,
+		ID:               primitive.NewObjectID(),
+		Email:            req.Email,
+		DisplayName:      req.DisplayName,
+		PasswordHash:     passwordHash,
+		AuthMethods:      []models.AuthMethod{models.AuthMethodPassword},
+		EmailVerified:    false,
+		IsActive:         true,
+		EmailPreferences: models.EmailPreferences{Marketing: true},
+		UnsubscribeToken: generateRandomToken(),
+		CreatedAt:        now,
+		UpdatedAt:        now,
 	}
 
 	if err := validation.Validate(&user); err != nil {
@@ -1405,16 +1407,18 @@ func (h *AuthHandler) GoogleOAuthCallback(w http.ResponseWriter, r *http.Request
 		if err != nil {
 			isNewUser = true
 			user = models.User{
-				ID:            primitive.NewObjectID(),
-				Email:         strings.ToLower(googleUser.Email),
-				DisplayName:   googleUser.GivenName,
-				GoogleID:      googleUser.ID,
-				AuthMethods:   []models.AuthMethod{models.AuthMethodGoogle},
-				EmailVerified: true,
-				IsActive:      true,
-				CreatedAt:     now,
-				UpdatedAt:     now,
-				LastLoginAt:   &now,
+				ID:               primitive.NewObjectID(),
+				Email:            strings.ToLower(googleUser.Email),
+				DisplayName:      googleUser.GivenName,
+				GoogleID:         googleUser.ID,
+				AuthMethods:      []models.AuthMethod{models.AuthMethodGoogle},
+				EmailVerified:    true,
+				IsActive:         true,
+				EmailPreferences: models.EmailPreferences{Marketing: true},
+				UnsubscribeToken: generateRandomToken(),
+				CreatedAt:        now,
+				UpdatedAt:        now,
+				LastLoginAt:      &now,
 			}
 			if _, err := h.db.Users().InsertOne(r.Context(), user); err != nil {
 				slog.Error("OAuth: failed to create user", "error", err)
@@ -1543,16 +1547,18 @@ func (h *AuthHandler) GitHubOAuthCallback(w http.ResponseWriter, r *http.Request
 				displayName = ghUser.Login
 			}
 			user = models.User{
-				ID:            primitive.NewObjectID(),
-				Email:         strings.ToLower(ghUser.Email),
-				DisplayName:   displayName,
-				GitHubID:      ghIDStr,
-				AuthMethods:   []models.AuthMethod{models.AuthMethodGitHub},
-				EmailVerified: true,
-				IsActive:      true,
-				CreatedAt:     now,
-				UpdatedAt:     now,
-				LastLoginAt:   &now,
+				ID:               primitive.NewObjectID(),
+				Email:            strings.ToLower(ghUser.Email),
+				DisplayName:      displayName,
+				GitHubID:         ghIDStr,
+				AuthMethods:      []models.AuthMethod{models.AuthMethodGitHub},
+				EmailVerified:    true,
+				IsActive:         true,
+				EmailPreferences: models.EmailPreferences{Marketing: true},
+				UnsubscribeToken: generateRandomToken(),
+				CreatedAt:        now,
+				UpdatedAt:        now,
+				LastLoginAt:      &now,
 			}
 			if _, err := h.db.Users().InsertOne(r.Context(), user); err != nil {
 				slog.Error("OAuth: failed to create user", "error", err)
@@ -1690,16 +1696,18 @@ func (h *AuthHandler) MicrosoftOAuthCallback(w http.ResponseWriter, r *http.Requ
 				displayName = msUser.GivenName
 			}
 			user = models.User{
-				ID:            primitive.NewObjectID(),
-				Email:         strings.ToLower(userEmail),
-				DisplayName:   displayName,
-				MicrosoftID:   msUser.ID,
-				AuthMethods:   []models.AuthMethod{models.AuthMethodMicrosoft},
-				EmailVerified: true,
-				IsActive:      true,
-				CreatedAt:     now,
-				UpdatedAt:     now,
-				LastLoginAt:   &now,
+				ID:               primitive.NewObjectID(),
+				Email:            strings.ToLower(userEmail),
+				DisplayName:      displayName,
+				MicrosoftID:      msUser.ID,
+				AuthMethods:      []models.AuthMethod{models.AuthMethodMicrosoft},
+				EmailVerified:    true,
+				IsActive:         true,
+				EmailPreferences: models.EmailPreferences{Marketing: true},
+				UnsubscribeToken: generateRandomToken(),
+				CreatedAt:        now,
+				UpdatedAt:        now,
+				LastLoginAt:      &now,
 			}
 			if _, err := h.db.Users().InsertOne(r.Context(), user); err != nil {
 				slog.Error("OAuth: failed to create user", "error", err)
@@ -1882,7 +1890,8 @@ func (h *AuthHandler) UpdatePreferences(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var req struct {
-		ThemePreference string `json:"themePreference"`
+		ThemePreference  string `json:"themePreference"`
+		EmailMarketing   *bool  `json:"emailMarketing"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondWithError(w, http.StatusBadRequest, "Invalid request body")
@@ -1897,10 +1906,46 @@ func (h *AuthHandler) UpdatePreferences(w http.ResponseWriter, r *http.Request) 
 		}
 		update["themePreference"] = req.ThemePreference
 	}
+	if req.EmailMarketing != nil {
+		update["emailPreferences.marketing"] = *req.EmailMarketing
+	}
 
 	h.db.Users().UpdateOne(r.Context(), bson.M{"_id": user.ID}, bson.M{"$set": update})
 
 	respondWithJSON(w, http.StatusOK, map[string]string{"message": "Preferences updated"})
+}
+
+// Unsubscribe handles one-click unsubscribe links embedded in marketing emails.
+// No authentication required — the unsubscribeToken in the URL authenticates the request.
+func (h *AuthHandler) Unsubscribe(w http.ResponseWriter, r *http.Request) {
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		http.Error(w, "Missing token", http.StatusBadRequest)
+		return
+	}
+
+	result, err := h.db.Users().UpdateOne(r.Context(),
+		bson.M{"unsubscribeToken": token},
+		bson.M{"$set": bson.M{
+			"emailPreferences.marketing": false,
+			"updatedAt":                  time.Now(),
+		}},
+	)
+	if err != nil || result.MatchedCount == 0 {
+		http.Error(w, "Invalid or expired unsubscribe link", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	fmt.Fprintf(w, `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Unsubscribed</title></head>
+<body style="font-family:sans-serif;text-align:center;padding:60px 20px;color:#374151;">
+  <h2>You've been unsubscribed</h2>
+  <p style="color:#6b7280;">You won't receive marketing emails from us anymore.<br>
+  You can re-enable them anytime in your account settings.</p>
+</body>
+</html>`)
 }
 
 // --- Onboarding ---

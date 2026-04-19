@@ -591,6 +591,9 @@ func main() {
 	protectedAuth.HandleFunc("/delete-account", authHandler.DeleteAccount).Methods("POST")
 	protectedAuth.HandleFunc("/export-data", authHandler.ExportData).Methods("GET")
 
+	// No auth required — token in URL authenticates the request
+	guarded.HandleFunc("/auth/unsubscribe", authHandler.Unsubscribe).Methods("GET")
+
 	// Tenant-scoped routes (require JWT + tenant context)
 	tenantAPI := guarded.PathPrefix("/tenant").Subrouter()
 	tenantAPI.Use(authMiddleware.RequireAuth)

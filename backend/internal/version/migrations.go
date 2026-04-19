@@ -2,6 +2,8 @@ package version
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"log/slog"
 	"os"
 	"time"
@@ -13,6 +15,14 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
+
+func generateMigrationToken() string {
+	b := make([]byte, 24)
+	if _, err := rand.Read(b); err != nil {
+		panic("crypto/rand failed: " + err.Error())
+	}
+	return hex.EncodeToString(b)
+}
 
 // Migration describes a one-time data transformation tied to a version boundary.
 // Up must be idempotent: if it has already run, running it again must be safe.
@@ -37,6 +47,44 @@ var migrations = []Migration{
 			_, err := database.RefreshTokens().UpdateMany(ctx,
 				bson.M{"isRevoked": true},
 				bson.M{"$set": bson.M{"expiresAt": time.Now()}},
+			)
+			return err
+		},
+	},
+	{
+		Version:     "1.2.0",
+		Description: "Backfill unsubscribeToken and emailPreferences on existing users",
+		Up: func(ctx context.Context, database *db.MongoDB) error {
+			cursor, err := database.Users().Find(ctx,
+				bson.M{"unsubscribeToken": bson.M{"$exists": false}},
+			)
+			if err != nil {
+				return err
+			}
+			defer cursor.Close(ctx)
+
+			var models []mongo.WriteModel
+			for cursor.Next(ctx) {
+				var doc struct {
+					ID primitive.ObjectID `bson:"_id"`
+				}
+				if err := cursor.Decode(&doc); err != nil {
+					continue
+				}
+				token := generateMigrationToken()
+				models = append(models, mongo.NewUpdateOneModel().
+					SetFilter(bson.M{"_id": doc.ID}).
+					SetUpdate(bson.M{"$set": bson.M{
+						"unsubscribeToken":           token,
+						"emailPreferences.marketing": true,
+					}}),
+				)
+			}
+			if len(models) == 0 {
+				return nil
+			}
+			_, err = database.Users().BulkWrite(ctx, models,
+				options.BulkWrite().SetOrdered(false),
 			)
 			return err
 		},
