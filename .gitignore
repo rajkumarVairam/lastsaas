@@ -45,3 +45,7 @@ dist/
 
 # Claude Code personal settings (machine-specific)
 .claude/settings.local.json
+
+# MongoDB self-hosted secrets (docker/mongodb/)
+docker/mongodb/keyfile
+docker/mongodb/.env

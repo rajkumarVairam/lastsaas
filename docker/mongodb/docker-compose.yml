@@ -1,0 +1,67 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: lastsaas-mongo
+    restart: always
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--auth", "--keyFile", "/etc/mongo/keyfile"]
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASS}
+      MONGO_INITDB_DATABASE: ${MONGO_DB}
+    volumes:
+      - mongo_data:/data/db
+      - mongo_config:/data/configdb
+      - ./keyfile:/etc/mongo/keyfile:ro
+    ports:
+      - "127.0.0.1:27017:27017"   # loopback only — expose via Tailscale/WireGuard
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # One-shot container: initialises replica set on first boot, idempotent on restarts.
+  mongo-init:
+    image: mongo:7
+    container_name: lastsaas-mongo-init
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: "no"
+    environment:
+      MONGO_USER: ${MONGO_USER}
+      MONGO_PASS: ${MONGO_PASS}
+    entrypoint: ["/scripts/init-replica.sh"]
+    volumes:
+      - ./scripts/init-replica.sh:/scripts/init-replica.sh:ro
+
+  # Runs mongodump daily at 02:00, keeps 7 days locally, optionally ships to S3/R2.
+  mongo-backup:
+    image: mongo:7
+    container_name: lastsaas-mongo-backup
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: always
+    environment:
+      MONGO_USER: ${MONGO_USER}
+      MONGO_PASS: ${MONGO_PASS}
+      MONGO_DB: ${MONGO_DB}
+      BACKUP_RETAIN_DAYS: ${BACKUP_RETAIN_DAYS:-7}
+      # Optional — leave empty to skip offsite upload
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}       # set for R2: https://<account>.r2.cloudflarestorage.com
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-auto}
+    volumes:
+      - mongo_backups:/backups
+      - ./scripts/backup.sh:/scripts/backup.sh:ro
+    # supercronic-style: run backup.sh on a cron schedule inside the container
+    entrypoint: ["/scripts/backup.sh", "--daemon"]
+
+volumes:
+  mongo_data:
+  mongo_config:
+  mongo_backups:
