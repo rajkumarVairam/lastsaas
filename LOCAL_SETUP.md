@@ -130,7 +130,67 @@ There is deliberately no "Add Tenant" or "Assign Tenant" button in the Admin UI.
 ### 2. Stripe Lazy Provisioning
 If you create a completely new Plan (e.g., "Super Tier - $99") in the Admin UI, it **will not** immediately appear in your Stripe Dashboard. LastSaaS uses Lazy Provisioning to prevent Stripe from getting cluttered. **Source of Truth:** It only pushes the Product and Price over to the Stripe API at the exact millisecond the *first* customer clicks "Checkout" for that specific plan.
 
-## Step 8: Admin UI Capabilities
+## Step 8: Deploying to Fly.io
+
+### Prerequisites
+- [Fly CLI](https://fly.io/docs/hands-on/install-flyctl/) installed and authenticated (`fly auth login`)
+- `backend/config/prod.yaml` exists (copy from `backend/config/prod.example.yaml` and fill in)
+- A MongoDB Atlas cluster (or any MongoDB URI accessible from the internet)
+
+### One-time setup
+```powershell
+fly launch   # only on first deploy — creates the app and registers it
+```
+
+### Set secrets (required before first deploy)
+Run all of these — any missing secret will cause startup to fail:
+
+```powershell
+fly secrets set `
+  MONGODB_URI="mongodb+srv://..." `
+  DATABASE_NAME="lastsaas-prod" `
+  JWT_ACCESS_SECRET="<random-64-char-string>" `
+  JWT_REFRESH_SECRET="<random-64-char-string>" `
+  FRONTEND_URL="https://your-app.fly.dev" `
+  APP_NAME="Your App" `
+  RESEND_API_KEY="re_..." `
+  FROM_EMAIL="noreply@yourdomain.com" `
+  FROM_NAME="Your App" `
+  STRIPE_SECRET_KEY="sk_live_..." `
+  STRIPE_PUBLISHABLE_KEY="pk_live_..." `
+  STRIPE_WEBHOOK_SECRET="whsec_..." `
+  WEBHOOK_ENCRYPTION_KEY="<32-byte-hex>" `
+  OBJECTSTORE_PROVIDER="db"
+```
+
+> `OBJECTSTORE_PROVIDER=db` stores files in MongoDB (safe default). Switch to `r2` or `s3` and add the corresponding secrets (`OBJECTSTORE_ACCESS_KEY`, `OBJECTSTORE_SECRET_KEY`, `OBJECTSTORE_BUCKET`, `OBJECTSTORE_PUBLIC_URL`, `OBJECTSTORE_ACCOUNT_ID`) when you need production-grade file storage.
+
+**Optional secrets** (features are silently disabled if omitted):
+```powershell
+fly secrets set GOOGLE_CLIENT_ID="..." GOOGLE_CLIENT_SECRET="..." GOOGLE_REDIRECT_URL="https://your-app.fly.dev/api/auth/google/callback"
+fly secrets set GITHUB_CLIENT_ID="..." GITHUB_CLIENT_SECRET="..." GITHUB_REDIRECT_URL="https://your-app.fly.dev/api/auth/github/callback"
+fly secrets set DATADOG_API_KEY="..." DATADOG_HOSTNAME="your-app"
+```
+
+### Deploy
+```powershell
+fly deploy
+```
+
+### First-time initialization (create root admin)
+After the first deploy, run the setup CLI against production:
+```powershell
+fly ssh console -C "/app/lastsaas setup"
+```
+
+### Subsequent deploys
+```powershell
+fly deploy   # builds image, deploys, zero-downtime rolling restart
+```
+
+---
+
+## Step 9: Admin UI Capabilities
 
 Yes, you can accomplish almost all configuration and management directly through the built-in Admin UI without touching any code. Here is a comprehensive list of what the Root Admin (Owner) can do directly from the dashboard:
 
