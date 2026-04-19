@@ -21,6 +21,7 @@ type TenantMembership struct {
 	Role      MemberRole         `json:"role" bson:"role" validate:"required,valid_role"`
 	JoinedAt  time.Time          `json:"joinedAt" bson:"joinedAt" validate:"required"`
 	UpdatedAt time.Time          `json:"updatedAt" bson:"updatedAt" validate:"required"`
+	SeedTag   string             `json:"-" bson:"seedTag,omitempty"`
 }
 
 var roleHierarchy = map[MemberRole]int{

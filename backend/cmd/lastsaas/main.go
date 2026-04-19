@@ -37,6 +37,8 @@ func main() {
 	switch os.Args[1] {
 	case "setup":
 		cmdSetup()
+	case "seed":
+		cmdSeed()
 	case "start":
 		cmdStart()
 	case "stop":
@@ -90,6 +92,7 @@ Usage:
 
 Commands:
   setup                Initialize the system (create root tenant + owner account)
+  seed                 Seed the database with test scenarios (dev/E2E only)
   start                Start backend and/or frontend servers
   stop                 Stop running servers
   restart              Restart servers (stop + start)

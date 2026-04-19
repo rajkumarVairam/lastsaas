@@ -26,4 +26,5 @@ type Tenant struct {
 	SeatQuantity         int                `json:"seatQuantity" bson:"seatQuantity"`
 	CreatedAt            time.Time          `json:"createdAt" bson:"createdAt" validate:"required"`
 	UpdatedAt            time.Time          `json:"updatedAt" bson:"updatedAt" validate:"required"`
+	SeedTag              string             `json:"-" bson:"seedTag,omitempty"`
 }

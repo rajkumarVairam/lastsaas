@@ -49,7 +49,8 @@ type User struct {
 	LastVerificationSent *time.Time         `json:"-" bson:"lastVerificationSent,omitempty"`
 	FailedLoginAttempts  int                `json:"-" bson:"failedLoginAttempts"`
 	AccountLockedUntil   *time.Time         `json:"-" bson:"accountLockedUntil,omitempty"`
-	TrialUsedAt          *time.Time         `json:"trialUsedAt,omitempty" bson:"trialUsedAt,omitempty"`
+	TrialUsedAt      *time.Time         `json:"trialUsedAt,omitempty" bson:"trialUsedAt,omitempty"`
+	SeedTag          string             `json:"-" bson:"seedTag,omitempty"`
 }
 
 func (u *User) HasAuthMethod(method AuthMethod) bool {

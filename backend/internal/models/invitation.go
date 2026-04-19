@@ -23,4 +23,5 @@ type Invitation struct {
 	InvitedBy primitive.ObjectID `json:"invitedBy" bson:"invitedBy" validate:"required"`
 	ExpiresAt time.Time          `json:"expiresAt" bson:"expiresAt" validate:"required"`
 	CreatedAt time.Time          `json:"createdAt" bson:"createdAt" validate:"required"`
+	SeedTag   string             `json:"-" bson:"seedTag,omitempty"`
 }

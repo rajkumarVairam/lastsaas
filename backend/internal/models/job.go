@@ -38,4 +38,5 @@ type Job struct {
 	CompletedAt *time.Time             `bson:"completedAt,omitempty"  json:"completedAt,omitempty"`
 	CreatedAt   time.Time              `bson:"createdAt"              json:"createdAt"   validate:"required"`
 	UpdatedAt   time.Time              `bson:"updatedAt"              json:"updatedAt"   validate:"required"`
+	SeedTag   string             `json:"-" bson:"seedTag,omitempty"`
 }

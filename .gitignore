@@ -46,6 +46,9 @@ dist/
 # Claude Code personal settings (machine-specific)
 .claude/settings.local.json
 
+# Test seed manifest (contains credentials and JWTs — never commit)
+seed-manifest.json
+
 # MongoDB self-hosted secrets (docker/mongodb/)
 docker/mongodb/keyfile
 docker/mongodb/.env

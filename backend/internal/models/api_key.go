@@ -27,4 +27,5 @@ type APIKey struct {
 	CreatedAt  time.Time          `json:"createdAt" bson:"createdAt" validate:"required"`
 	LastUsedAt *time.Time         `json:"lastUsedAt" bson:"lastUsedAt"`
 	IsActive   bool               `json:"isActive" bson:"isActive"`
+	SeedTag    string             `json:"-" bson:"seedTag,omitempty"`
 }

@@ -55,4 +55,5 @@ type Plan struct {
 	IsArchived           bool                        `json:"isArchived" bson:"isArchived"`
 	CreatedAt            time.Time                   `json:"createdAt" bson:"createdAt" validate:"required"`
 	UpdatedAt            time.Time                   `json:"updatedAt" bson:"updatedAt" validate:"required"`
+	SeedTag   string             `json:"-" bson:"seedTag,omitempty"`
 }
