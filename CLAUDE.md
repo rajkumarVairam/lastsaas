@@ -261,6 +261,20 @@ cd backend && go build ./...
 cd frontend && npx tsc --noEmit
 ```
 
+## README Maintenance Rule
+
+When shipping a new feature or architectural primitive, **update `README.md`** in the same commit or the next one. Check these sections:
+
+- "What It Gives You" bullet list
+- Comparison table (if the feature is a differentiator vs. common alternatives)
+- Feature sections (add a new `###` block with a 2-3 sentence description)
+- Environment variables table (if new config vars were added)
+- Project structure (if new top-level packages were added under `internal/`)
+- Tech stack table (if new dependencies were added)
+- "Fork It and Keep Building" guide (add a step if the feature requires wiring)
+
+At the end of any session with multiple commits, run `git log upstream/master..HEAD --oneline` and cross-check each commit against the README to confirm nothing was missed.
+
 ## Adding a New External Dependency (Rule)
 
 Every new external service wired in `cmd/server/main.go` **must** have a health checker registered before the server starts. This surfaces misconfiguration (wrong credentials, unreachable endpoint) immediately at startup rather than silently at the first user request.
